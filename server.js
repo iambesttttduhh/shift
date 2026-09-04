@@ -327,7 +327,7 @@ function loadDb() {
   for (const u of db.users) {
     if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
     if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
-    if (!u.emailKey) u.emailKey = normalizeEmailKey(u.email); // v1.10: mailbox key
+    if (!u.emailKey) { u.emailKey = normalizeEmailKey(u.email); migrated++; } // v1.10: mailbox key
   }
   if (!Array.isArray(db.requests)) db.requests = []; // v1.8: friend requests
   if (migrated) { saveDbNow(); console.log('[frfr] migration: verified', migrated, 'existing accounts'); }
