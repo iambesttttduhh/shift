@@ -43,7 +43,9 @@ const state = {
   activeMatch: null,     // match object when in chat
   chatTimer: null,
   muted: localStorage.getItem('frfr_muted') === '1',
-  pending: null   // { token, email, name, mailMode, devCode } during email verification
+  pending: null,   // { token, email, name, mailMode, devCode } during email verification
+  reqCount: 0,     // pending incoming friend requests
+  feed: { items: [], page: 0, done: false, loading: false }
 };
 
 const sfxHappy = $('#sfx-happy');
@@ -134,35 +136,40 @@ function pickPhoto(file, cb) {
   img.src = url;
 }
 
-function photoFieldHtml(hasPhoto) {
-  return `
-    <div class="field"><label>ur pic <span style="text-transform:none;letter-spacing:0">(optional — shows on ur profile + cards)</span></label>
-      <div class="photo-row">
-        <div class="photo-preview ${hasPhoto ? 'has' : ''}" id="photo-prev" style="${hasPhoto ? `background-image:url('${hasPhoto}')` : ''}">${hasPhoto ? '' : '😕'}</div>
-        <div class="photo-btns">
-          <button type="button" class="btn btn-ghost btn-sm" id="photo-btn">📷 upload pic</button>
-          ${hasPhoto ? '<button type="button" class="btn btn-ghost btn-sm" id="photo-del">🗑 remove</button>' : ''}
-        </div>
-      </div>
-      <input type="file" id="photo-file" accept="image/*" hidden>
-    </div>`;
+function photoThumbsHtml(photos) {
+  return `<div class="photo-thumbs">
+    ${photos.map((p, i) => `
+      <div class="photo-thumb ${i === 0 ? 'cover' : ''}" style="background-image:url('${p}')">
+        <button type="button" class="thumb-x" data-i="${i}">✕</button>
+        ${i === 0 ? '<span class="cover-tag">cover</span>' : ''}
+      </div>`).join('')}
+    ${photos.length < 3 ? '<button type="button" class="photo-add" id="photo-add">＋ pic</button>' : ''}
+  </div>`;
 }
 
-function wirePhotoField(onChange) {
-  const btn = $('#photo-btn'), file = $('#photo-file'), prev = $('#photo-prev');
-  if (!btn) return;
-  btn.onclick = () => file.click();
-  file.onchange = () => {
+function renderPhotoField(photos, onChange) {
+  const host = $('#photo-field-host');
+  if (!host) return;
+  host.innerHTML = `
+    <div class="field"><label>ur pics <span style="text-transform:none;letter-spacing:0">(up to 3 · first = cover, shows on the feed)</span></label>
+      ${photoThumbsHtml(photos)}
+      <input type="file" id="photo-file" accept="image/*" hidden>
+    </div>`;
+  const addBtn = $('#photo-add', host);
+  const file = $('#photo-file', host);
+  if (addBtn) addBtn.onclick = () => file.click();
+  if (file) file.onchange = () => {
     if (file.files && file.files[0]) {
-      pickPhoto(file.files[0], (durl) => { onChange(durl); });
+      pickPhoto(file.files[0], (durl) => {
+        file.value = '';
+        onChange([...photos, durl]);
+      });
     }
   };
-  const del = $('#photo-del');
-  if (del) del.onclick = () => onChange(null);
-  window.__applyPhotoPreview = (durl) => {
-    if (durl) { prev.style.backgroundImage = `url('${durl}')`; prev.classList.add('has'); prev.textContent = ''; }
-    else { prev.style.backgroundImage = ''; prev.classList.remove('has'); prev.textContent = '😕'; }
-  };
+  $$('.thumb-x', host).forEach(x => x.onclick = () => {
+    const i = +x.dataset.i;
+    onChange(photos.slice(0, i).concat(photos.slice(i + 1)));
+  });
 }
 
 /* ============================================================
@@ -192,7 +199,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.7 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v1.8 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -249,7 +256,7 @@ function renderAuthCard() {
       `<button type="button" class="vibe-pick ${draft.vibes.includes(v.id) ? 'on' : ''}" data-vibe="${v.id}">${v.emoji} ${esc(v.label)}</button>`).join('');
     form.innerHTML = `
       <div class="field"><label>ur name <span class="req">*</span></label><input name="name" maxlength="24" placeholder="Aarav / Zoya..." required></div>
-      ${photoFieldHtml(draft.photo)}
+      <div id="photo-field-host"></div>
       <div class="frow">
         <div class="field"><label>username <span class="req">*</span></label><input name="username" maxlength="16" placeholder="cool_user_9" required></div>
         <div class="field"><label>age <span class="req">*</span></label><input name="age" type="number" min="13" max="19" placeholder="13-19" required></div>
@@ -270,7 +277,12 @@ function renderAuthCard() {
       <div class="err-line" id="auth-err"></div>
       <button class="btn btn-primary btn-block" type="submit">find my frens 🔥</button>
     `;
-    wirePhotoField((durl) => { draft.photo = durl; if (window.__applyPhotoPreview) window.__applyPhotoPreview(durl); });
+    draft.photo = null;
+    const rerenderPics = (arr) => {
+      draft.photo = arr[0] || null;
+      renderPhotoField(arr, rerenderPics);
+    };
+    renderPhotoField([], rerenderPics);
     // avatar + vibe pickers
     $$('.avatar-pick', form).forEach(b => b.onclick = () => {
       draft.emoji = b.dataset.emoji;
@@ -407,7 +419,7 @@ async function enterApp() {
   await loadMe();
   if (!state.user) return;
   renderShell();
-  setView('deck');
+  setView('feed');
 }
 
 async function loadMe() {
@@ -416,7 +428,17 @@ async function loadMe() {
     state.user = r.user;
     state.likesReceived = r.likesReceived;
     state.matchesCount = r.matches;
+    state.reqCount = r.reqCount || 0;
   } catch (e) { /* handled in api() */ }
+  updateReqBadge();
+}
+
+function updateReqBadge() {
+  const bell = $('#nav-req-dot');
+  if (bell) {
+    bell.style.display = state.reqCount > 0 ? 'grid' : 'none';
+    bell.textContent = state.reqCount > 9 ? '9+' : state.reqCount;
+  }
 }
 
 function stopTimers() {
@@ -449,14 +471,17 @@ function renderShell() {
 function renderNav() {
   const u = state.user;
   const tabs = [
-    { id: 'deck', icon: '🔥', label: 'swipe' },
-    { id: 'matches', icon: '💬', label: 'chats' },
+    { id: 'feed', icon: '🔥', label: 'feed' },
+    { id: 'matches', icon: '💬', label: 'frens' },
+    { id: 'requests', icon: '💌', label: 'requests', dot: true },
     ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : []),
     { id: 'profile', icon: '😎', label: 'me' }
   ];
   $('#nav').innerHTML = tabs.map(t =>
     `<button class="nav-btn ${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
-       <span class="ni">${t.icon}</span>${t.label}</button>`).join('');
+       <span class="ni">${t.icon}</span>${t.label}
+       ${t.dot ? '<span class="nav-dot" id="nav-req-dot" style="display:none"></span>' : ''}
+     </button>`).join('');
   $$('#nav .nav-btn').forEach(b => b.onclick = () => {
     if (b.dataset.view === state.view && !state.activeMatch) return;
     setView(b.dataset.view);
@@ -469,8 +494,9 @@ async function setView(v) {
   state.activeMatch = null;
   renderNav();
   const root = $('#view-root');
-  if (v === 'deck') { renderDeckSkeleton(); await loadDeck(); }
+  if (v === 'feed') { initFeed(); }
   else if (v === 'matches') { await renderMatches(); }
+  else if (v === 'requests') { await renderRequests(); }
   else if (v === 'profile') { renderProfile(); }
   else if (v === 'admin') { await renderAdmin(); }
 }
@@ -528,163 +554,194 @@ async function doLogout() {
 }
 
 /* ============================================================
-   DECK (swiping)
+   FEED — scroll profiles, double-tap to send a friend request 💌
    ============================================================ */
-function renderDeckSkeleton() {
+function initFeed() {
+  stopTimers();
+  state.feed = { items: [], page: 0, done: false, loading: false };
   $('#view-root').innerHTML = `
-    <div class="deck-wrap">
+    <div class="feed-wrap">
       <div class="deck-meta">
-        <div class="deck-count" id="deck-count"></div>
-        <button class="btn btn-ghost btn-sm" id="refresh-deck">↺ refresh</button>
+        <div class="deck-count" id="feed-count"></div>
+        <button class="btn btn-ghost btn-sm" id="feed-refresh">↺ refresh</button>
       </div>
-      <div class="deck-stage" id="deck-stage"><div class="spin"></div></div>
-      <div class="swipe-actions" id="swipe-actions" style="visibility:hidden">
-        <button class="act nope" id="btn-nope" title="nope (left)">✕</button>
-        <button class="act like" id="btn-like" title="like (right)">❤</button>
-      </div>
-      <div class="swipe-tip">drag the card ← → or use the buttons · arrow keys work too</div>
+      <div class="feed" id="feed"><div class="spin"></div></div>
+      <div class="swipe-tip">double-tap a profile = friend request 💌 · scroll past the ones u dont vibe with</div>
     </div>`;
-  $('#refresh-deck').onclick = () => loadDeck();
-  $('#btn-nope').onclick = () => commitSwipe('left');
-  $('#btn-like').onclick = () => commitSwipe('right');
+  $('#feed-refresh').onclick = () => initFeed();
+  const feed = $('#feed');
+  feed.addEventListener('scroll', () => {
+    if (feed.scrollTop + feed.clientHeight > feed.scrollHeight - 420) loadFeedPage();
+  });
+  loadFeedPage();
 }
 
-async function loadDeck() {
-  const stage = $('#deck-stage');
-  if (!stage) return;
+async function loadFeedPage() {
+  const f = state.feed;
+  if (f.loading || f.done) return;
+  f.loading = true;
   try {
-    const r = await api('/api/deck');
-    state.deck = r.deck;
-    renderStack();
+    const r = await api('/api/feed?page=' + f.page + '&limit=6');
+    f.items = f.items.concat(r.items);
+    f.page++;
+    f.done = r.done;
+    const count = $('#feed-count');
+    if (count) count.innerHTML = '<b>' + r.total + '</b> frens in <b>' + esc(state.user.city) + '</b>';
+    const feedEl = $('#feed');
+    if (!feedEl) { f.loading = false; return; }
+    const empty = $('.feed-empty', feedEl);
+    if (empty) empty.remove();
+    const spinner = $('.spin', feedEl);
+    if (spinner) spinner.remove();
+    if (!f.items.length) {
+      feedEl.innerHTML = `
+        <div class="feed-empty">
+          <div class="big">🫶</div>
+          <h3>no more profiles rn</h3>
+          <p>u seen everyone in ${esc(state.user.city)}! change city from ur profile or check back later 👀</p>
+          <button class="btn btn-primary" id="feed-refill">↺ check again</button>
+        </div>`;
+      const b = $('#feed-refill');
+      if (b) b.onclick = () => initFeed();
+      f.loading = false;
+      return;
+    }
+    const startIdx = f.items.length - r.items.length;
+    r.items.forEach((u, i) => feedEl.insertAdjacentHTML('beforeend', feedCardHtml(u, startIdx + i)));
+    wireFeedCards(r.items);
   } catch (e) {
-    if (stage) stage.innerHTML = `<div class="empty-deck"><div class="big">💀</div><h3>couldn't load</h3><p>${esc(e.message)}</p></div>`;
+    const feedEl = $('#feed');
+    if (feedEl && !f.items.length) feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t load</h3><p>' + esc(e.message) + '</p></div>';
   }
+  f.loading = false;
 }
 
-function renderStack() {
-  const stage = $('#deck-stage');
-  if (!stage) return;
-  const count = $('#deck-count');
-  if (count) count.innerHTML = state.deck.length ? `<b>${state.deck.length}</b> frens in <b>${esc(state.user.city)}</b> waitin` : '';
-  if (!state.deck.length) {
-    $('#swipe-actions').style.visibility = 'hidden';
-    stage.innerHTML = `
-      <div class="empty-deck">
-        <div class="big">🫶</div>
-        <h3>ur all caught up, bestie!</h3>
-        <p>no more frens to swipe in ${esc(state.user.city)} rn.<br>invited ur squad yet? or peep another city from ur profile 👀</p>
-        <button class="btn btn-primary" id="refill">↺ check again</button>
-      </div>`;
-    $('#refill').onclick = () => loadDeck();
-    return;
-  }
-  $('#swipe-actions').style.visibility = 'visible';
-  const [top, u1, u2] = state.deck;
-  stage.innerHTML = [u2, u1, top].map((u, i) => u ? cardHtml(u, i === 2 ? 'top' : (i === 1 ? 'under-1' : 'under-2')) : '').join('');
-  attachDrag($('.card.top', stage));
-}
-
-function cardHtml(u, cls) {
+function feedCardHtml(u) {
   const m = state.meta;
   const vibes = (u.vibes || []).map(id => {
     const v = m.vibes.find(x => x.id === id);
     return v ? `<span class="chip">${v.emoji} ${esc(v.label)}</span>` : '';
   }).join('');
   const grad = gradCss(m, u.avatar.grad);
+  const photos = u.photos || [];
+  let btn;
+  if (u._reqStatus === 'pending') btn = `<button class="rail-btn pending" data-id="${esc(u.id)}" title="request sent — waiting">⏳</button>`;
+  else if (u._likesYou) btn = `<button class="rail-btn likesyou" data-id="${esc(u.id)}" title="wants to be ur fren — tap back!">💌</button>`;
+  else btn = `<button class="rail-btn like" data-id="${esc(u.id)}" title="double-tap or tap = friend request">❤</button>`;
   return `
-  <div class="card ${cls}" data-id="${esc(u.id)}">
-    <div class="card-media" style="background:${grad}">
-      <span class="card-sparkle" style="top:14%;left:12%">✦</span>
-      <span class="card-sparkle" style="top:22%;right:14%;animation-delay:1.2s">✦</span>
-      <span class="card-sparkle" style="bottom:20%;left:20%;animation-delay:.6s">✧</span>
-      ${u.photo ? `<img class="card-photo" src="${u.photo}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
-      <div class="stamp like">LIKE</div>
-      <div class="stamp nope">NOPE</div>
-      ${u._likedMe ? '<div class="liked-me-flag">❤ liked u already</div>' : ''}
+  <div class="feed-card" data-id="${esc(u.id)}" data-photo="0">
+    <div class="feed-media" style="background:${grad}">
+      ${photos.length
+        ? `<img class="feed-photo" src="${photos[0]}" alt="">`
+        : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+      ${photos.length > 1 ? `
+        <button class="gal-btn gal-prev" title="prev pic">‹</button>
+        <button class="gal-btn gal-next" title="next pic">›</button>
+        <div class="gal-dots">${photos.map((_, di) => `<span class="${di === 0 ? 'on' : ''}"></span>`).join('')}</div>` : ''}
+      ${u._likesYou ? '<div class="liked-me-flag">💌 wants to be ur fren</div>' : ''}
+      <div class="stamp like">FREN REQ 💌</div>
     </div>
-    <div class="card-body">
+    <div class="feed-info">
       <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span> <span class="gen">· ${esc(u.gender)}</span></div>
-      <div class="card-loc">📍 ${esc(u.city)}</div>
+      <div class="card-loc">📍 ${esc(u.city)} · @${esc(u.username)}</div>
       ${u.bio ? `<p class="card-bio">${esc(u.bio)}</p>` : ''}
       ${vibes ? `<div class="chips">${vibes}</div>` : ''}
     </div>
+    <div class="feed-rail">${btn}</div>
   </div>`;
 }
 
-function attachDrag(card) {
-  if (!card) return;
-  let sx = 0, sy = 0, dx = 0, dy = 0, dragging = false;
-  const likeStamp = $('.stamp.like', card);
-  const nopeStamp = $('.stamp.nope', card);
+function wireFeedCards(items) {
+  items.forEach(u => {
+    const card = $('.feed-card[data-id="' + CSS.escape(u.id) + '"]');
+    if (!card) return;
+    const photos = u.photos || [];
 
-  card.addEventListener('pointerdown', (e) => {
-    if (state.swiping) return;
-    dragging = true; sx = e.clientX; sy = e.clientY; dx = dy = 0;
-    card.setPointerCapture(e.pointerId);
-    card.classList.add('dragging');
+    const showPic = (n) => {
+      const i = ((n % photos.length) + photos.length) % photos.length;
+      card.dataset.photo = i;
+      const img = $('.feed-photo', card);
+      if (img) img.src = photos[i];
+      $$('.gal-dots span', card).forEach((d, di) => d.classList.toggle('on', di === i));
+    };
+    const prev = $('.gal-prev', card), next = $('.gal-next', card);
+    if (prev) prev.onclick = (e) => { e.stopPropagation(); showPic(+card.dataset.photo - 1); };
+    if (next) next.onclick = (e) => { e.stopPropagation(); showPic(+card.dataset.photo + 1); };
+
+    // double-tap = friend request (with drag guard so scrolling doesn't trigger)
+    let lastTap = 0, lastX = 0, lastY = 0, downX = 0, downY = 0;
+    card.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.rail-btn') || e.target.closest('.gal-btn')) return;
+      downX = e.clientX; downY = e.clientY;
+      const now = Date.now();
+      const dist = Math.hypot(e.clientX - lastX, e.clientY - lastY);
+      if (now - lastTap < 350 && dist < 80) {
+        lastTap = 0;
+        heartBurst(e.clientX, e.clientY);
+        sendFriendRequest(u.id);
+      } else { lastTap = now; lastX = e.clientX; lastY = e.clientY; }
+    });
+    card.addEventListener('dblclick', (e) => {
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 14) return; // was a scroll/drag
+      if (e.target.closest('.rail-btn') || e.target.closest('.gal-btn')) return;
+      heartBurst(e.clientX, e.clientY);
+      sendFriendRequest(u.id);
+    });
+
+    const btn = $('.rail-btn', card);
+    if (btn) btn.onclick = () => sendFriendRequest(u.id, btn);
   });
-  card.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    dx = e.clientX - sx; dy = e.clientY - sy;
-    const rot = dx * 0.055;
-    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
-    likeStamp.style.opacity = Math.min(1, Math.max(0, dx / 80));
-    nopeStamp.style.opacity = Math.min(1, Math.max(0, -dx / 80));
-  });
-  const release = () => {
-    if (!dragging) return;
-    dragging = false;
-    card.classList.remove('dragging');
-    const threshold = card.offsetWidth * 0.32;
-    if (dx > threshold) commitSwipe('right');
-    else if (dx < -threshold) commitSwipe('left');
-    else {
-      card.style.transition = 'transform .3s cubic-bezier(.2,1.2,.4,1)';
-      card.style.transform = '';
-      likeStamp.style.opacity = 0; nopeStamp.style.opacity = 0;
-      setTimeout(() => { card.style.transition = ''; }, 320);
-    }
-  };
-  card.addEventListener('pointerup', release);
-  card.addEventListener('pointercancel', release);
 }
 
-async function commitSwipe(dir) {
-  if (state.swiping || !state.deck.length) return;
-  const u = state.deck[0];
-  const card = $(`.card[data-id="${CSS.escape(u.id)}"]`);
-  if (!card) return;
-  state.swiping = true;
-
-  // audio first so it hits on the gesture
-  playSfx(dir === 'right' ? 'happy' : 'ohno');
-
-  card.classList.add(dir === 'right' ? 'fly-right' : 'fly-left');
-  const likeStamp = $('.stamp.like', card), nopeStamp = $('.stamp.nope', card);
-  if (likeStamp) likeStamp.style.opacity = dir === 'right' ? 1 : 0;
-  if (nopeStamp) nopeStamp.style.opacity = dir === 'left' ? 1 : 0;
-
-  let result = null;
+async function sendFriendRequest(targetId, btn) {
+  const card = $('.feed-card[data-id="' + CSS.escape(targetId) + '"]');
+  const railBtn = btn || (card && $('.rail-btn', card));
+  if (railBtn && railBtn.classList.contains('pending')) { toast('request already sent ⏳ patience bestie'); return; }
   try {
-    result = await api('/api/swipe', { method: 'POST', body: { targetId: u.id, dir } });
+    const r = await api('/api/request', { method: 'POST', body: { targetId } });
+    if (r.status === 'mutual') {
+      confetti(70);
+      state.matchesCount++;
+      if (card) {
+        card.style.transition = 'transform .45s, opacity .45s';
+        card.style.transform = 'scale(.8)';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 470);
+      }
+      showFrensModal(r.match);
+    } else if (r.status === 'sent') {
+      toast('friend request sent 💌');
+      state.likesReceived++;
+      if (railBtn) { railBtn.classList.remove('like', 'likesyou'); railBtn.classList.add('pending'); railBtn.textContent = '⏳'; }
+      const stamp = card && $('.stamp.like', card);
+      if (stamp) { stamp.style.opacity = '1'; setTimeout(() => { stamp.style.opacity = '0'; }, 900); }
+    } else if (r.status === 'already') {
+      toast('request already sent ⏳ patience bestie');
+      if (railBtn) { railBtn.classList.remove('like', 'likesyou'); railBtn.classList.add('pending'); railBtn.textContent = '⏳'; }
+    }
   } catch (e) { toast(e.message, 'bad'); }
-
-  setTimeout(() => {
-    state.deck.shift();
-    state.swiping = false;
-    renderStack();
-    if (result && result.status === 'match') showMatchModal(result.match);
-    if (state.deck.length <= 4) loadDeck(); // quietly refill
-  }, 380);
 }
 
-/* keyboard swiping */
-document.addEventListener('keydown', (e) => {
-  if (state.view !== 'deck' || state.activeMatch || !state.user) return;
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-  if (e.key === 'ArrowLeft') commitSwipe('left');
-  if (e.key === 'ArrowRight') commitSwipe('right');
-});
+/* dopamine: floating hearts at tap point */
+function heartBurst(x, y) {
+  playSfx('happy');
+  const big = document.createElement('div');
+  big.className = 'big-heart';
+  big.style.cssText = 'left:' + (x - 40) + 'px;top:' + (y - 40) + 'px;';
+  big.textContent = ['💜', '💖', '❤️'][Math.floor(Math.random() * 3)];
+  fx.appendChild(big);
+  setTimeout(() => big.remove(), 900);
+  for (let i = 0; i < 10; i++) {
+    const h = document.createElement('div');
+    h.className = 'burst-heart';
+    const ang = (Math.PI * 2 * i) / 10 + Math.random() * 0.6;
+    const dist = 60 + Math.random() * 90;
+    h.style.cssText = 'left:' + x + 'px;top:' + y + 'px;--dx:' + Math.round(Math.cos(ang) * dist) + 'px;--dy:' + Math.round((Math.sin(ang) * dist - 60)) + 'px;font-size:' + (14 + Math.random() * 16) + 'px;';
+    h.textContent = ['❤️', '💖', '💜', '🩷', '💕'][Math.floor(Math.random() * 5)];
+    fx.appendChild(h);
+    setTimeout(() => h.remove(), 1100);
+  }
+}
 
 /* ------------------------------------------------------ match modal */
 function showMatchModal(match) {
@@ -693,8 +750,8 @@ function showMatchModal(match) {
   ov.className = 'overlay';
   ov.innerHTML = `
     <div class="match-card">
-      <div class="match-title">IT'S A MATCH!!</div>
-      <p class="match-sub">u and ${esc(match.user.name)} liked each other fr fr 🫶</p>
+      <div class="match-title">Y'ALL ARE FRENS!!</div>
+      <p class="match-sub">u and ${esc(match.user.name)} are frens now fr fr 🫶</p>
       <div class="match-avatars">
         <div class="mav" style="background:${gradCss(state.meta, state.user.avatar.grad)}">${state.user.photo ? `<img src="${state.user.photo}" alt="">` : esc(state.user.avatar.emoji)}</div>
         <div class="match-heart">💜</div>
@@ -702,7 +759,7 @@ function showMatchModal(match) {
       </div>
       <div class="match-actions">
         <button class="btn btn-primary btn-block" id="mm-chat">say hi 👋</button>
-        <button class="btn btn-ghost btn-block" id="mm-keep">keep swiping</button>
+        <button class="btn btn-ghost btn-block" id="mm-keep">keep scrolling</button>
       </div>
     </div>`;
   document.body.appendChild(ov);
@@ -718,29 +775,31 @@ function showMatchModal(match) {
   $('#mm-keep', ov).onclick = () => ov.remove();
 }
 
+const showFrensModal = showMatchModal;
+
 /* ============================================================
    MATCHES + CHAT
    ============================================================ */
 async function renderMatches() {
   const root = $('#view-root');
-  root.innerHTML = `<h2 class="page-title">ur matches 💜</h2><p class="page-sub">mutual vibes only. tap to start yapping</p><div class="spin"></div>`;
+  root.innerHTML = `<h2 class="page-title">ur frens 💜</h2><p class="page-sub">mutual vibe check passed. tap to yap</p><div class="spin"></div>`;
   try {
     const r = await api('/api/matches');
     if (!r.matches.length) {
       root.innerHTML = `
-        <h2 class="page-title">ur matches 💜</h2>
+        <h2 class="page-title">ur frens 💜</h2>
         <div class="empty-deck">
           <div class="big">🥺</div>
-          <h3>no matches yet</h3>
-          <p>go swipe right on ppl from ${esc(state.user.city)} — chemistry awaits 🔥</p>
-          <button class="btn btn-primary" id="go-swipe">🔥 start swiping</button>
+          <h3>no frens yet</h3>
+          <p>double-tap someone from ${esc(state.user.city)} on the feed — or accept a request 💌</p>
+          <button class="btn btn-primary" id="go-swipe">🔥 open feed</button>
         </div>`;
       $('#go-swipe').onclick = () => setView('deck');
       return;
     }
     root.innerHTML = `
-      <h2 class="page-title">ur matches 💜</h2>
-      <p class="page-sub">${r.matches.length} mutual vibe${r.matches.length > 1 ? 's' : ''} · tap to yap</p>
+      <h2 class="page-title">ur frens 💜</h2>
+      <p class="page-sub">${r.matches.length} fren${r.matches.length > 1 ? 's' : ''} · tap to yap</p>
       ${r.matches.map(mt => `
         <button class="match-row" data-id="${esc(mt.id)}" data-name="${esc(mt.user.name)}">
           ${avatarHtml(mt.user)}
@@ -823,6 +882,95 @@ async function openChat(matchId, otherUser) {
 }
 
 /* ============================================================
+   REQUESTS INBOX 💌
+   ============================================================ */
+async function renderRequests() {
+  const root = $('#view-root');
+  root.innerHTML = '<h2 class="page-title">requests 💌</h2><div class="spin"></div>';
+  try {
+    const r = await api('/api/requests');
+    state.reqCount = r.incoming.length;
+    updateReqBadge();
+    const incomingHtml = r.incoming.length ? r.incoming.map(rq => `
+      <div class="req-row" id="rq-${esc(rq.id)}">
+        ${avatarHtml(rq.user)}
+        <div class="match-row-mid">
+          <div class="match-row-name">${esc(rq.user.name)} <span class="muted-dim">${rq.user.age} · ${esc(rq.user.city)}</span></div>
+          <div class="match-row-last">@${esc(rq.user.username)} wants to be ur fren</div>
+        </div>
+        <div class="req-actions">
+          <button class="req-btn yes" data-id="${esc(rq.id)}" title="accept">✓</button>
+          <button class="req-btn no" data-id="${esc(rq.id)}" title="reject">✕</button>
+        </div>
+      </div>`).join('') : `
+      <div class="empty-deck" style="padding:34px 10px">
+        <div class="big">📬</div>
+        <h3 style="font-size:16px">no requests yet</h3>
+        <p>when someone double-taps u, they land here 😎</p>
+      </div>`;
+    const sentHtml = r.sent.length ? `
+      <h2 class="page-title" style="font-size:17px">sent by u ⏳</h2>
+      ${r.sent.map(rq => `
+        <div class="req-row dim">
+          ${avatarHtml(rq.user)}
+          <div class="match-row-mid">
+            <div class="match-row-name">${esc(rq.user.name)} <span class="muted-dim">${rq.user.age} · ${esc(rq.user.city)}</span></div>
+            <div class="match-row-last">waiting for their answer…</div>
+          </div>
+          <span class="match-row-time">⏳</span>
+        </div>`).join('')}` : '';
+    root.innerHTML = `
+      <h2 class="page-title">requests 💌</h2>
+      <p class="page-sub">they liked u — ur call bestie</p>
+      ${incomingHtml}
+      ${sentHtml}
+      <div class="section-gap"></div>`;
+    $$('.req-btn.yes', root).forEach(b => b.onclick = () => decideRequest(b.dataset.id, 'accept'));
+    $$('.req-btn.no', root).forEach(b => b.onclick = () => decideRequest(b.dataset.id, 'reject'));
+  } catch (e) {
+    root.innerHTML = '<div class="empty-deck"><div class="big">💀</div><h3>couldn&apos;t load</h3><p>' + esc(e.message) + '</p></div>';
+  }
+}
+
+async function decideRequest(id, action) {
+  try {
+    const r = await api('/api/requests/' + encodeURIComponent(id) + '/' + action, { method: 'POST', body: {} });
+    const row = document.getElementById('rq-' + CSS.escape(id));
+    if (row) {
+      row.style.transition = 'all .3s';
+      row.style.opacity = '0';
+      row.style.transform = 'translateX(' + (action === 'accept' ? '40px' : '-40px') + ')';
+      setTimeout(() => row.remove(), 300);
+    }
+    if (action === 'accept') {
+      playSfx('happy');
+      confetti(50);
+      state.matchesCount++;
+      state.reqCount = Math.max(0, state.reqCount - 1);
+      updateReqBadge();
+      toast('u and ' + r.match.user.name + ' are frens now 🎉', 'good');
+      const ov = overlayCard(`
+        <div class="match-card" style="max-width:330px">
+          <div class="match-title" style="font-size:26px">FRENSSS!! 🎉</div>
+          <p class="match-sub">u and ${esc(r.match.user.name)} can yap now</p>
+          <div class="match-actions">
+            <button class="btn btn-primary btn-block" id="fr-chat">say hi 👋</button>
+            <button class="btn btn-ghost btn-block" id="fr-later">later</button>
+          </div>
+        </div>`);
+      $('#fr-chat', ov).onclick = async () => { ov.remove(); state.view = 'matches'; renderNav(); await openChat(r.match.id, r.match.user); };
+      $('#fr-later', ov).onclick = () => ov.remove();
+    } else {
+      playSfx('ohno');
+      state.reqCount = Math.max(0, state.reqCount - 1);
+      updateReqBadge();
+      toast('request rejected ✕');
+    }
+    await loadMe();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
+/* ============================================================
    PROFILE
    ============================================================ */
 let profileDraft = null;
@@ -867,7 +1015,7 @@ function renderProfile() {
     <h2 class="page-title" style="font-size:18px">edit ur vibe 🎨</h2>
     <p class="page-sub">change city to see frens somewhere else</p>
     <form id="edit-form">
-      ${photoFieldHtml(u.photo)}
+      <div id="photo-field-host"></div>
       <div class="frow">
         <div class="field"><label>name</label><input name="name" maxlength="24" value="${esc(profileDraft.name)}"></div>
         <div class="field"><label>age</label><input name="age" type="number" min="13" max="19" value="${profileDraft.age}"></div>
@@ -886,16 +1034,20 @@ function renderProfile() {
       </div>
     </form>`;
 
-  profileDraft.photo = u.photo || null;
-  wirePhotoField((durl) => {
-    profileDraft.photo = durl;
-    if (window.__applyPhotoPreview) window.__applyPhotoPreview(durl);
+  profileDraft.photos = [...(u.photos || (u.photo ? [u.photo] : []))];
+  const syncCover = () => {
     const media = $('#me-media');
-    if (durl) { media.innerHTML = `<img class="card-photo" src="${durl}" alt="">`; }
+    if (profileDraft.photos[0]) { media.innerHTML = `<img class="card-photo" src="${profileDraft.photos[0]}" alt="">`; }
     else { media.innerHTML = `<span class="card-emoji" id="me-emoji">${esc(profileDraft.emoji)}</span>`; }
-  });
+  };
+  const rerenderPics = (arr) => {
+    profileDraft.photos = arr;
+    renderPhotoField(arr, rerenderPics);
+    syncCover();
+  };
+  renderPhotoField(profileDraft.photos, rerenderPics);
   const syncPreview = () => {
-    if (!profileDraft.photo) {
+    if (!profileDraft.photos[0]) {
       const em = $('#me-emoji');
       if (em) em.textContent = profileDraft.emoji;
     }
@@ -929,7 +1081,7 @@ function renderProfile() {
           name: fd.get('name'), age: fd.get('age'), city: fd.get('city'),
           gender: fd.get('gender'), bio: fd.get('bio'),
           vibes: profileDraft.vibes, avatar: { emoji: profileDraft.emoji, grad: profileDraft.grad },
-          photo: profileDraft.photo
+          photos: profileDraft.photos
         }
       });
       const cityChanged = r.user.city !== state.user.city;
@@ -964,9 +1116,10 @@ async function renderAdmin() {
         <div class="stat-card"><b>${s.users.real}</b><span>real users</span></div>
         <div class="stat-card purple"><b>${s.users.demo}</b><span>demo frens</span></div>
         <div class="stat-card cyan"><b>${s.cities.count}</b><span>cities active</span></div>
-        <div class="stat-card pink"><b>${s.matches}</b><span>matches made</span></div>
-        <div class="stat-card"><b>${s.swipes.right}</b><span>❤ right swipes</span></div>
-        <div class="stat-card pink"><b>${s.swipes.left}</b><span>✕ left swipes</span></div>
+        <div class="stat-card pink"><b>${s.matches}</b><span>frens made</span></div>
+        <div class="stat-card"><b>${s.requests.sent}</b><span>⏳ pending reqs</span></div>
+        <div class="stat-card cyan"><b>${s.requests.accepted}</b><span>✓ accepted</span></div>
+        <div class="stat-card pink"><b>${s.requests.rejected}</b><span>✕ rejected</span></div>
         <div class="stat-card cyan"><b>${s.messages}</b><span>messages sent</span></div>
         <div class="stat-card purple"><b>${s.signupsWeek}</b><span>signups (7d)</span></div>
       </div>
@@ -986,7 +1139,7 @@ async function renderAdmin() {
         <button class="btn btn-ghost btn-sm" id="admin-refresh">↺ refresh</button>
       </div>
       <div class="admin-table-wrap"><table class="admin">
-        <thead><tr><th>who</th><th>@user</th><th>city</th><th>age</th><th>type</th><th>❤→</th><th>💜</th><th>💬</th><th>joined</th><th></th></tr></thead>
+        <thead><tr><th>who</th><th>@user</th><th>city</th><th>age</th><th>type</th><th>reqs</th><th>frens</th><th>msgs</th><th>joined</th><th></th></tr></thead>
         <tbody id="admin-rows"></tbody>
       </table></div>
       <div class="section-gap"></div>`;
@@ -1001,7 +1154,7 @@ async function renderAdmin() {
           <td>${esc(u.city)}</td>
           <td>${u.age}</td>
           <td><span class="tag ${u.isBot ? 'demo' : 'real'}">${u.isBot ? 'demo' : 'real'}</span></td>
-          <td>${u.swipesGiven}</td>
+          <td>${u.reqs}</td>
           <td>${u.matches}</td>
           <td>${u.msgs}</td>
           <td>${timeAgo(u.createdAt)}</td>
@@ -1084,7 +1237,7 @@ function editUserModal(u) {
     else toast('max 5 vibes', 'bad');
   });
 
-  let photo = u.photo || null;
+  let photo = (u.photos && u.photos[0]) || u.photo || null;
   $('#eu-photo-btn', ov).onclick = () => $('#eu-photo-file', ov).click();
   $('#eu-photo-file', ov).onchange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -1141,7 +1294,7 @@ async function boot() {
       state.likesReceived = r.likesReceived;
       state.matchesCount = r.matches;
       renderShell();
-      setView('deck');
+      setView('feed');
       return;
     } catch { /* token dead — landing */ }
   }

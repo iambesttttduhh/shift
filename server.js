@@ -214,7 +214,9 @@ function loadDb() {
   let migrated = 0;
   for (const u of db.users) {
     if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
+    if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
   }
+  if (!Array.isArray(db.requests)) db.requests = []; // v1.8: friend requests
   if (migrated) { saveDbNow(); console.log('[frfr] migration: verified', migrated, 'existing accounts'); }
 }
 
@@ -335,6 +337,7 @@ function seedBots() {
         bio: pick(BOT_BIOS),
         vibes,
         avatar: { emoji: pick(EMOJIS), grad: randInt(0, GRADS.length - 1) },
+        photos: [],
         isBot: true, emailVerified: true,
         createdAt: Date.now() - randInt(1, 60) * 86400000
       });
@@ -351,10 +354,12 @@ function findUserByUsernameOrEmail(x) {
 
 function publicUser(u, { withEmail = false, noPhoto = false } = {}) {
   if (!u) return null;
+  const photos = Array.isArray(u.photos) ? u.photos : (u.photo ? [u.photo] : []);
   const out = {
     id: u.id, name: u.name, username: u.username, age: u.age, city: u.city,
     gender: u.gender, bio: u.bio || '', vibes: u.vibes || [], avatar: u.avatar,
     photo: noPhoto ? null : (u.photo || null),
+    photos: noPhoto ? [] : photos,
     role: u.role, isBot: !!u.isBot, createdAt: u.createdAt
   };
   if (withEmail) out.email = u.email;
@@ -441,7 +446,7 @@ addRoute('POST', '/api/signup', {}, async (req, res, params, body) => {
     age, city, gender, bio, vibes, avatar,
     isBot: false, createdAt: Date.now()
   };
-  if (body.photo) user.photo = body.photo;
+  if (body.photo) { user.photo = body.photo; user.photos = [body.photo]; }
   user.emailVerified = false;
   db.users.push(user);
   saveDb();
@@ -516,9 +521,10 @@ addRoute('POST', '/api/verify/resend', {}, async (req, res, params, body) => {
 
 /* --------------------------------------------------------------- api: user */
 addRoute('GET', '/api/me', { auth: true }, (req, res, params, body, user) => {
-  const likes = db.swipes.filter(s => s.to === user.id && s.dir === 'right').length;
+  const likes = db.requests.filter(r => r.to === user.id && (r.status === 'pending' || r.status === 'accepted')).length;
+  const reqCount = db.requests.filter(r => r.to === user.id && r.status === 'pending').length;
   const myMatches = db.matches.filter(m => m.a === user.id || m.b === user.id).length;
-  sendJson(res, 200, { user: publicUser(user, { withEmail: true }), likesReceived: likes, matches: myMatches });
+  sendJson(res, 200, { user: publicUser(user, { withEmail: true }), likesReceived: likes, matches: myMatches, reqCount });
 });
 
 addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
@@ -534,9 +540,16 @@ addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
     user.vibes = [...new Set(v)].slice(0, 5);
   }
   if (body.photo !== undefined) {
-    if (body.photo === null) { delete user.photo; }
-    else if (validPhoto(body.photo)) { user.photo = body.photo; }
+    if (body.photo === null) { delete user.photo; user.photos = []; }
+    else if (validPhoto(body.photo)) { user.photo = body.photo; if (!(user.photos || []).includes(body.photo)) { user.photos = [body.photo, ...(user.photos || [])].slice(0, 3); } }
     else return bad(res, 'pic too big or not an image 💀 (max ~300KB)');
+  }
+  if (body.photos !== undefined) {
+    if (!Array.isArray(body.photos)) return bad(res, 'bad photos list');
+    const arr = body.photos.filter(validPhoto).slice(0, 3);
+    if (arr.length !== body.photos.length) return bad(res, 'pic too big or not an image 💀 (max ~300KB)');
+    user.photos = arr;
+    if (arr[0]) user.photo = arr[0]; else delete user.photo;
   }
   if (body.avatar !== undefined && body.avatar && typeof body.avatar === 'object') {
     const emoji = EMOJIS.includes(body.avatar.emoji) ? body.avatar.emoji : user.avatar.emoji;
@@ -558,45 +571,111 @@ addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
 });
 
 /* --------------------------------------------------------------- api: deck */
-addRoute('GET', '/api/deck', { auth: true }, (req, res, params, body, user) => {
-  const swiped = new Set(db.swipes.filter(s => s.from === user.id).map(s => s.to));
+addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const page = Math.max(0, parseInt(q.get('page') || '0', 10) || 0);
+  const limit = Math.min(20, Math.max(1, parseInt(q.get('limit') || '8', 10) || 8));
   const myCity = user.city.toLowerCase();
+  const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
+  const rejectedByMe = new Set(db.requests.filter(r => r.from === user.id && r.status === 'rejected').map(r => r.to));
+  const pendingFromMe = new Set(db.requests.filter(r => r.from === user.id && r.status === 'pending').map(r => r.to));
+  const likedMePending = new Set(db.requests.filter(r => r.to === user.id && r.status === 'pending').map(r => r.from));
+
   const pool = db.users.filter(u =>
     u.id !== user.id &&
     u.role !== 'admin' &&
     u.city.toLowerCase() === myCity &&
-    !swiped.has(u.id)
+    !frenIds.has(u.id) &&
+    !rejectedByMe.has(u.id)
   );
-  // people who already liked u show up first 😏
-  const likedMe = new Set(db.swipes.filter(s => s.to === user.id && s.dir === 'right').map(s => s.from));
-  pool.sort((a, b) => (likedMe.has(b.id) ? 1 : 0) - (likedMe.has(a.id) ? 1 : 0) || Math.random() - 0.5);
-  sendJson(res, 200, { deck: pool.slice(0, 15).map(u => ({ ...publicUser(u), _likedMe: likedMe.has(u.id) })), city: user.city });
+  // people who requested u first show up first; rest in a stable (per-user) shuffled order
+  pool.sort((a, b) => {
+    const la = likedMePending.has(b.id) ? 1 : 0, lb = likedMePending.has(a.id) ? 1 : 0;
+    if (la !== lb) return la - lb;
+    const ha = crypto.createHash('md5').update(user.id + a.id).digest('hex');
+    const hb = crypto.createHash('md5').update(user.id + b.id).digest('hex');
+    return ha < hb ? -1 : 1;
+  });
+  const total = pool.length;
+  const items = pool.slice(page * limit, page * limit + limit).map(u => ({
+    ...publicUser(u),
+    _likesYou: likedMePending.has(u.id),
+    _reqStatus: pendingFromMe.has(u.id) ? 'pending' : 'none'
+  }));
+  sendJson(res, 200, { items, total, page, done: page * limit + items.length >= total, city: user.city });
 });
 
-addRoute('POST', '/api/swipe', { auth: true }, (req, res, params, body, user) => {
+addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) => {
   const target = findUser(body.targetId);
-  const dir = body.dir === 'right' ? 'right' : 'left';
   if (!target || target.id === user.id || target.role === 'admin') return bad(res, 'invalid target');
-  if (swipeBetween(user.id, target.id)) return bad(res, 'already swiped this one');
+  if (existingMatch(user.id, target.id)) return bad(res, 'yall are already frens 🤝');
 
-  db.swipes.push({ id: uid('s'), from: user.id, to: target.id, dir, at: Date.now() });
+  const mine = db.requests.find(r => r.from === user.id && r.to === target.id);
+  if (mine && mine.status === 'pending') return sendJson(res, 200, { status: 'already' });
 
-  let result = { status: dir === 'right' ? 'liked' : 'passed' };
-  if (dir === 'right') {
-    let theyLikeMe = swipeBetween(target.id, user.id);
-    // demo frens sometimes like u back so u can feel the match magic ✨
-    if (!theyLikeMe && target.isBot && Math.random() < 0.6) {
-      db.swipes.push({ id: uid('s'), from: target.id, to: user.id, dir: 'right', at: Date.now() });
-      theyLikeMe = swipeBetween(target.id, user.id);
-    }
-    if (theyLikeMe && theyLikeMe.dir === 'right' && !existingMatch(user.id, target.id)) {
-      const match = { id: uid('m'), pair: pairKey(user.id, target.id), a: user.id, b: target.id, at: Date.now() };
+  // they asked u first + u like back = instant frens ✨
+  const theirs = db.requests.find(r => r.from === target.id && r.to === user.id && r.status === 'pending');
+  if (theirs) {
+    theirs.status = 'accepted'; theirs.decidedAt = Date.now();
+    if (mine && mine.status === 'pending') { mine.status = 'accepted'; mine.decidedAt = Date.now(); }
+    let match = existingMatch(user.id, target.id);
+    if (!match) {
+      match = { id: uid('m'), pair: pairKey(user.id, target.id), a: user.id, b: target.id, at: Date.now() };
       db.matches.push(match);
-      result = { status: 'match', match: { id: match.id, user: publicUser(target) } };
     }
+    saveDb();
+    return sendJson(res, 200, { status: 'mutual', match: { id: match.id, user: publicUser(target) } });
+  }
+
+  if (mine && mine.status === 'rejected') { mine.status = 'pending'; mine.at = Date.now(); }
+  else if (!mine) db.requests.push({ id: uid('r'), from: user.id, to: target.id, status: 'pending', at: Date.now() });
+
+  // demo frens sometimes accept instantly so u feel the dopamine ✨
+  if (target.isBot && Math.random() < 0.65) {
+    const r = db.requests.find(x => x.from === user.id && x.to === target.id);
+    r.status = 'accepted'; r.decidedAt = Date.now();
+    const match = { id: uid('m'), pair: pairKey(user.id, target.id), a: user.id, b: target.id, at: Date.now() };
+    db.matches.push(match);
+    saveDb();
+    return sendJson(res, 200, { status: 'mutual', match: { id: match.id, user: publicUser(target) } });
   }
   saveDb();
-  sendJson(res, 200, result);
+  sendJson(res, 200, { status: 'sent' });
+});
+
+addRoute('GET', '/api/requests', { auth: true }, (req, res, params, body, user) => {
+  const incoming = db.requests
+    .filter(r => r.to === user.id && r.status === 'pending')
+    .map(r => ({ id: r.id, at: r.at, user: publicUser(findUser(r.from)) }))
+    .filter(x => x.user).sort((a, b) => b.at - a.at);
+  const sent = db.requests
+    .filter(r => r.from === user.id && r.status === 'pending')
+    .map(r => ({ id: r.id, at: r.at, user: publicUser(findUser(r.to)) }))
+    .filter(x => x.user).sort((a, b) => b.at - a.at);
+  sendJson(res, 200, { incoming, sent });
+});
+
+addRoute('POST', '/api/requests/:id/accept', { auth: true }, (req, res, params, body, user) => {
+  const r = db.requests.find(x => x.id === params.id);
+  if (!r || r.to !== user.id) return bad(res, 'request not found', 404);
+  if (r.status !== 'pending') return bad(res, 'already handled this one');
+  r.status = 'accepted'; r.decidedAt = Date.now();
+  let match = existingMatch(r.from, r.to);
+  if (!match) {
+    match = { id: uid('m'), pair: pairKey(r.from, r.to), a: r.from, b: r.to, at: Date.now() };
+    db.matches.push(match);
+  }
+  saveDb();
+  sendJson(res, 200, { ok: true, match: { id: match.id, user: publicUser(findUser(r.from)) } });
+});
+
+addRoute('POST', '/api/requests/:id/reject', { auth: true }, (req, res, params, body, user) => {
+  const r = db.requests.find(x => x.id === params.id);
+  if (!r || r.to !== user.id) return bad(res, 'request not found', 404);
+  if (r.status !== 'pending') return bad(res, 'already handled this one');
+  r.status = 'rejected'; r.decidedAt = Date.now();
+  saveDb();
+  sendJson(res, 200, { ok: true });
 });
 
 /* ------------------------------------------------------------ api: matches */
@@ -663,6 +742,11 @@ addRoute('GET', '/api/admin/stats', { auth: true }, (req, res, params, body, use
   const real = db.users.filter(u => !u.isBot && u.role !== 'admin');
   const bots = db.users.filter(u => u.isBot);
   const admins = db.users.filter(u => u.role === 'admin');
+  const reqStats = {
+    sent: db.requests.filter(r => r.status === 'pending').length,
+    accepted: db.requests.filter(r => r.status === 'accepted').length,
+    rejected: db.requests.filter(r => r.status === 'rejected').length
+  };
   const cityMap = new Map();
   for (const u of db.users.filter(u => u.role !== 'admin')) {
     const k = u.city;
@@ -680,10 +764,7 @@ addRoute('GET', '/api/admin/stats', { auth: true }, (req, res, params, body, use
   const weekAgo = Date.now() - 7 * 86400000;
   sendJson(res, 200, {
     users: { total: db.users.length, real: real.length, demo: bots.length, admins: admins.length },
-    swipes: {
-      right: db.swipes.filter(s => s.dir === 'right').length,
-      left: db.swipes.filter(s => s.dir === 'left').length
-    },
+    requests: reqStats,
     matches: db.matches.length,
     messages: db.messages.length,
     signupsToday: real.filter(u => u.createdAt > dayAgo).length,
@@ -700,10 +781,10 @@ addRoute('GET', '/api/admin/stats', { auth: true }, (req, res, params, body, use
 addRoute('GET', '/api/admin/users', { auth: true }, (req, res, params, body, user) => {
   if (!requireAdmin(req, res, user)) return;
   const rows = db.users.filter(u => u.role !== 'admin').map(u => {
-    const swipesGiven = db.swipes.filter(s => s.from === u.id).length;
+    const reqs = db.requests.filter(r => r.from === u.id).length;
     const matches = db.matches.filter(m => m.a === u.id || m.b === u.id).length;
     const msgs = db.messages.filter(m => m.from === u.id).length;
-    return { ...publicUser(u, { withEmail: true, noPhoto: true }), swipesGiven, matches, msgs };
+    return { ...publicUser(u, { withEmail: true, noPhoto: true }), reqs, matches, msgs };
   }).sort((a, b) => b.createdAt - a.createdAt);
   sendJson(res, 200, { users: rows });
 });
@@ -879,7 +960,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.7  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v1.7)');
+  console.log('  ✦✦✦  frfr build v1.8  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v1.8)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
