@@ -48,14 +48,43 @@ const state = {
   feed: { items: [], page: 0, done: false, loading: false }
 };
 
-const sfxHappy = $('#sfx-happy');
-const sfxOhno = $('#sfx-ohno');
-[sfxHappy, sfxOhno].forEach(a => a.addEventListener('error', () => { a.dataset.broken = '1'; }, true));
-function playSfx(kind) {
+/* cat reaction animations (happy 😸 on like/accept · sad 😿 on reject) */
+function catAnimation(kind, x, y) {
   if (state.muted) return;
-  const el = kind === 'happy' ? sfxHappy : sfxOhno;
-  if (el.dataset.broken) return;
-  try { el.currentTime = 0; el.volume = kind === 'happy' ? 0.9 : 0.95; el.play().catch(() => {}); } catch {}
+  const happy = kind === 'happy';
+  const el = document.createElement('div');
+  el.className = 'cat-fx ' + (happy ? 'cat-happy' : 'cat-sad');
+  const cx = typeof x === 'number' ? Math.min(Math.max(x, 90), (window.innerWidth || 400) - 90) : (window.innerWidth || 400) / 2;
+  const cy = typeof y === 'number' ? Math.min(Math.max(y, 110), (window.innerHeight || 700) - 190) : (window.innerHeight || 700) * 0.4;
+  el.style.left = cx + 'px';
+  el.style.top = cy + 'px';
+  const main = document.createElement('span');
+  main.className = 'cat-main';
+  main.textContent = happy ? (Math.random() > 0.5 ? '😸' : '😻') : '😿';
+  el.appendChild(main);
+  if (happy) {
+    ['💖', '✨', '💜'].forEach((s, i) => {
+      const sp = document.createElement('span');
+      sp.className = 'cat-spark';
+      sp.textContent = s;
+      sp.style.left = (-48 + i * 46) + 'px';
+      sp.style.top = (-34 + (i % 2) * 56) + 'px';
+      sp.style.animationDelay = (i * 0.09) + 's';
+      el.appendChild(sp);
+    });
+  } else {
+    for (let i = 0; i < 3; i++) {
+      const t = document.createElement('span');
+      t.className = 'cat-tear';
+      t.textContent = '💧';
+      t.style.left = (12 + i * 24) + 'px';
+      t.style.top = '30px';
+      t.style.animationDelay = (0.15 + i * 0.15) + 's';
+      el.appendChild(t);
+    }
+  }
+  fx.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
 }
 
 /* ------------------------------------------------------------ api */
@@ -199,7 +228,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.0 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.1 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -452,7 +481,7 @@ function renderShell() {
       <div class="logo-sm" id="tb-logo">frfr<span class="dot">.</span></div>
       <button class="icon-btn tb-icon" id="tb-explore" title="explore">🧭</button>
       <button class="city-chip" id="city-chip" title="tap to change city">📍 ${esc(u.city)}</button>
-      <button class="icon-btn" id="mute-btn" title="sound on/off">${state.muted ? '🔇' : '🔊'}</button>
+      <button class="icon-btn ${state.muted ? 'off' : ''}" id="mute-btn" title="cat animations on/off">😸</button>
       <button class="icon-btn" id="logout-btn" title="settings / logout">⚙</button>
     </div></header>
     <main class="app-col" id="view-root"></main>
@@ -464,8 +493,9 @@ function renderShell() {
   $('#mute-btn').onclick = () => {
     state.muted = !state.muted;
     localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
-    $('#mute-btn').textContent = state.muted ? '🔇' : '🔊';
-    toast(state.muted ? 'sounds off 🤫' : 'sounds on 🔊');
+    const b = $('#mute-btn');
+    b.classList.toggle('off', state.muted);
+    toast(state.muted ? 'cat animations off 🚫🐱' : 'cat animations on 🐱');
   };
   $('#city-chip').onclick = () => setView('profile');
   renderNav();
@@ -523,7 +553,7 @@ function openSettingsMenu() {
       <div class="match-actions">
         <button class="btn btn-primary btn-block" id="st-profile">😎 my profile</button>
         <button class="btn btn-ghost btn-block" id="st-explore">🧭 explore</button>
-        <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '🔇 sounds: off' : '🔊 sounds: on'}</button>
+        <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '😸 cat animations: off' : '😸 cat animations: on'}</button>
         <button class="btn btn-pink btn-block" id="st-logout">🚪 log out</button>
         <button class="btn btn-ghost btn-block" id="st-close">close</button>
       </div>
@@ -533,9 +563,9 @@ function openSettingsMenu() {
   $('#st-sound', ov).onclick = () => {
     state.muted = !state.muted;
     localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
-    const mb = $('#mute-btn'); if (mb) mb.textContent = state.muted ? '🔇' : '🔊';
+    const mb = $('#mute-btn'); if (mb) mb.classList.toggle('off', state.muted);
     ov.remove();
-    toast(state.muted ? 'sounds off 🤫' : 'sounds on 🔊');
+    toast(state.muted ? 'cat animations off 🚫🐱' : 'cat animations on 🐱');
   };
   $('#st-logout', ov).onclick = () => {
     ov.innerHTML = `
@@ -719,6 +749,7 @@ async function sendFriendRequest(targetId, btn) {
       showFrensModal(r.match);
     } else if (r.status === 'sent') {
       toast('friend request sent 💌');
+      catAnimation('happy');
       state.likesReceived++;
       if (railBtn) { railBtn.classList.remove('like', 'likesyou'); railBtn.classList.add('pending'); railBtn.textContent = '⏳'; }
       const stamp = card && $('.stamp.like', card);
@@ -730,9 +761,9 @@ async function sendFriendRequest(targetId, btn) {
   } catch (e) { toast(e.message, 'bad'); }
 }
 
-/* dopamine: floating hearts at tap point */
+/* dopamine: floating hearts + happy cat at tap point */
 function heartBurst(x, y) {
-  playSfx('happy');
+  catAnimation('happy', x, y);
   const big = document.createElement('div');
   big.className = 'big-heart';
   big.style.cssText = 'left:' + (x - 40) + 'px;top:' + (y - 40) + 'px;';
@@ -771,8 +802,7 @@ function showMatchModal(match) {
       </div>
     </div>`;
   document.body.appendChild(ov);
-  sfxHappy.volume = 0.9;
-  if (!state.muted) { try { sfxHappy.currentTime = 0; sfxHappy.play().catch(() => {}); } catch {} }
+  catAnimation('happy');
   $('#mm-chat', ov).onclick = async () => {
     ov.remove();
     stopTimers();
@@ -802,7 +832,7 @@ async function renderMatches() {
           <p>double-tap someone from ${esc(state.user.city)} on the feed — or accept a request 💌</p>
           <button class="btn btn-primary" id="go-swipe">🔥 open feed</button>
         </div>`;
-      $('#go-swipe').onclick = () => setView('deck');
+      $('#go-swipe').onclick = () => setView('feed');
       return;
     }
     root.innerHTML = `
@@ -1148,7 +1178,7 @@ async function decideRequest(id, action) {
       setTimeout(() => row.remove(), 300);
     }
     if (action === 'accept') {
-      playSfx('happy');
+      catAnimation('happy');
       confetti(50);
       state.matchesCount++;
       state.reqCount = Math.max(0, state.reqCount - 1);
@@ -1166,7 +1196,7 @@ async function decideRequest(id, action) {
       $('#fr-chat', ov).onclick = async () => { ov.remove(); state.view = 'matches'; renderNav(); await openChat(r.match.id, r.match.user); };
       $('#fr-later', ov).onclick = () => ov.remove();
     } else {
-      playSfx('ohno');
+      catAnimation('sad');
       state.reqCount = Math.max(0, state.reqCount - 1);
       updateReqBadge();
       toast('request rejected ✕');

@@ -854,3 +854,42 @@ code.kbd { background: rgba(255,255,255,.08); padding: 2px 7px; border-radius: 6
   .vc-card { height: 330px; }
   .peek-media { height: 200px; }
 }
+
+/* ====================================================
+   v2.1 — cat reaction animations (no audio)
+   ==================================================== */
+.cat-fx { position: fixed; z-index: 140; pointer-events: none; transform: translate(-50%, -50%); }
+.cat-main {
+  display: block; font-size: 86px; line-height: 1;
+  filter: drop-shadow(0 10px 26px rgba(0,0,0,.45));
+}
+.cat-happy .cat-main { animation: catHappy .95s cubic-bezier(.2,1.3,.4,1) forwards; }
+@keyframes catHappy {
+  0%   { transform: scale(0) rotate(-25deg); opacity: 0; }
+  22%  { transform: scale(1.35) rotate(9deg); opacity: 1; }
+  40%  { transform: scale(1) rotate(-7deg); }
+  58%  { transform: scale(1.08) rotate(6deg); }
+  100% { transform: scale(1) translateY(-52px) rotate(0); opacity: 0; }
+}
+.cat-sad .cat-main { animation: catSad 1.15s ease-in forwards; }
+@keyframes catSad {
+  0%   { transform: scale(0); opacity: 0; }
+  22%  { transform: scale(1.18) rotate(4deg); opacity: 1; }
+  38%  { transform: rotate(-9deg); }
+  54%  { transform: rotate(8deg); }
+  70%  { transform: rotate(-5deg); }
+  100% { transform: translateY(64px) scale(.88) rotate(0); opacity: 0; }
+}
+.cat-spark { position: absolute; animation: catSpark .85s ease-out forwards; opacity: 0; }
+@keyframes catSpark {
+  0%   { opacity: 0; transform: scale(.3); }
+  30%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.4) translateY(-26px); }
+}
+.cat-tear { position: absolute; animation: tearFall .95s ease-in forwards; opacity: 0; }
+@keyframes tearFall {
+  0%   { opacity: 0; transform: translateY(-8px) scale(.7); }
+  25%  { opacity: 1; transform: translateY(14px) scale(1); }
+  100% { opacity: 0; transform: translateY(76px) scale(.9); }
+}
+.icon-btn.off { opacity: .4; }
