@@ -115,6 +115,7 @@ function avatarHtml(u, cls = '') {
    LANDING / AUTH
    ============================================================ */
 let authTab = 'login';
+let draft = { emoji: '😎', grad: 0, vibes: [] }; // signup form draft (avatar/vibes picks)
 
 function renderLanding() {
   stopTimers();
