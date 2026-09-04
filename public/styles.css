@@ -463,3 +463,46 @@ table.admin tr:last-child td { border-bottom: none; }
 .muted-dim { color: var(--dim); font-size: 13px; }
 .section-gap { height: 26px; }
 code.kbd { background: rgba(255,255,255,.08); padding: 2px 7px; border-radius: 6px; font-size: 12px; }
+
+/* ---------------------------------------------------- desktop scale-up */
+@media (min-width: 900px) {
+  .app-col { max-width: 700px; padding-bottom: 110px; }
+  .topbar-in { max-width: 700px; padding: 14px 20px; }
+  .logo-sm { font-size: 24px; }
+  .city-chip { font-size: 13.5px; padding: 8px 14px; }
+
+  .deck-stage { height: min(64vh, 660px); min-height: 500px; }
+  .card-body { padding: 20px 26px 26px; }
+  .card-name { font-size: 25px; }
+  .card-name .age { font-size: 17px; }
+  .card-loc { font-size: 14px; }
+  .card-bio { font-size: 15.5px; }
+  .card-emoji { font-size: clamp(110px, 27vh, 190px); }
+  .chip { font-size: 13px; }
+  .stamp { font-size: 32px; }
+  .swipe-actions { gap: 28px; margin-top: 24px; }
+  .act { width: 72px; height: 72px; font-size: 32px; }
+  .swipe-tip { font-size: 13.5px; }
+
+  .page-title { font-size: 26px; }
+  .match-row { padding: 16px 18px; }
+  .avatar { width: 62px; height: 62px; font-size: 30px; }
+  .avatar.sm { width: 48px; height: 48px; font-size: 23px; }
+
+  .chat-scroll { min-height: 56vh; }
+  .bubble { font-size: 15px; max-width: 68%; }
+  .chat-input input { padding: 15px 20px; }
+
+  .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .stat-card b { font-size: 30px; }
+  .stat-row .stat-box b { font-size: 25px; }
+  .me-card-media { height: 215px; }
+  .me-card-media .card-emoji { font-size: 112px; }
+
+  .bottom-nav { padding-bottom: 16px; }
+  .nav-btn { padding: 9px 24px; font-size: 11.5px; }
+  .nav-btn .ni { font-size: 21px; }
+  .btn { font-size: 15.5px; }
+
+  table.admin { font-size: 13.5px; }
+}
