@@ -26,7 +26,8 @@ function clockTime(t) {
   return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
 function gradCss(meta, i) {
-  const g = meta.grads[i % meta.grads.length];
+  const gs = (meta && meta.grads && meta.grads.length) ? meta.grads : [{ from: '#7c3aed', to: '#ff4d8d' }];
+  const g = gs[(Number.isInteger(i) && i >= 0 ? i : 0) % gs.length] || gs[0];
   return `linear-gradient(135deg, ${g.from}, ${g.to})`;
 }
 
@@ -151,10 +152,11 @@ function confetti(n = 70) {
 
 /* ------------------------------------------------------------ avatar html */
 function avatarHtml(u, cls = '') {
+  const av = u.avatar || { emoji: '😎', grad: 0 };
   const inner = u.photo
     ? `<img src="${u.photo}" alt="">`
-    : esc(u.avatar.emoji);
-  return `<div class="avatar ${cls}" style="background:${gradCss(state.meta, u.avatar.grad)}" title="${esc(u.name)}">${inner}</div>`;
+    : esc(av.emoji || '😎');
+  return `<div class="avatar ${cls}" style="background:${gradCss(state.meta, av.grad)}" title="${esc(u.name)}">${inner}</div>`;
 }
 
 /* resize any image file to a small jpeg dataURL so uploads stay tiny */
@@ -215,6 +217,8 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
+const APP_VER = '3.1';
+window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
 
@@ -242,7 +246,7 @@ function renderLanding() {
           <div class="marquee m1"><span>double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍 double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍</span></div>
           <div class="marquee m2"><span>yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍 yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍</span></div>
         </div>
-        <div class="ver-tag">v3.0 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.1 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -695,6 +699,14 @@ function initFeed(keepScroll) {
   }, { passive: true });
   loadFeedPage();
   if (keepScroll && scrollPos) feed.scrollTop = scrollPos;
+  setTimeout(() => {
+    const el = $('#feed');
+    if (el && el.querySelector('.spin') && !el.querySelector('.feed-card')) {
+      el.innerHTML = '<div class="feed-empty"><div class="big">⏳</div><h3>profiles are stuck loading</h3><p>app v' + APP_VER + ' · server: ' + esc((state.meta && state.meta.build) || 'unknown') + '<br>fix: close ALL server windows, run start.bat again, then hold <b>Ctrl</b> + <b>R</b></p><button class="btn btn-primary" id="feed-retry">↺ retry</button></div>';
+      const rb = $('#feed-retry');
+      if (rb) rb.onclick = () => initFeed();
+    }
+  }, 15000);
 }
 
 function renderFeedFilterbar() {
@@ -837,8 +849,17 @@ async function loadFeedPage() {
       return;
     }
     const startIdx = f.items.length - r.items.length;
-    r.items.forEach((u, i) => feedEl.insertAdjacentHTML('beforeend', feedCardHtml(u, startIdx + i)));
-    wireFeedCards(r.items);
+    let rendered = 0;
+    r.items.forEach((u, i) => {
+      try { feedEl.insertAdjacentHTML('beforeend', feedCardHtml(u, startIdx + i)); rendered++; }
+      catch (cardErr) { console.error('card render failed', u && u.username, cardErr); }
+    });
+    try { wireFeedCards(r.items); } catch (wireErr) { console.error('wire failed', wireErr); }
+    if (!rendered && !feedEl.querySelector('.feed-card')) {
+      feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t draw the profiles</h3><p>app v' + APP_VER + ' — hold Ctrl and press R, then retry</p><button class="btn btn-primary" id="feed-retry">↺ retry</button></div>';
+      const rb = $('#feed-retry');
+      if (rb) rb.onclick = () => initFeed();
+    }
   } catch (e) {
     const feedEl = $('#feed');
     if (feedEl) {
@@ -861,7 +882,8 @@ function feedCardHtml(u, idx = 0) {
     const v = m.vibes.find(x => x.id === id);
     return v ? `<span class="chip">${v.emoji} ${esc(v.label)}</span>` : '';
   }).join('');
-  const grad = gradCss(m, u.avatar.grad);
+  const av = u.avatar || { emoji: '😎', grad: 0 };
+  const grad = gradCss(m, av.grad);
   const photos = u.photos || [];
   let btn;
   if (u._reqStatus === 'pending') btn = `<button class="rail-btn pending" data-id="${esc(u.id)}" title="request sent — waiting">⏳</button>`;
@@ -872,7 +894,7 @@ function feedCardHtml(u, idx = 0) {
     <div class="feed-media" style="background:${grad}">
       ${photos.length
         ? `<img class="feed-photo" src="${photos[0]}" alt="">`
-        : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+        : `<span class="card-emoji">${esc(av.emoji || '😎')}</span>`}
       ${photos.length > 1 ? `
         <button class="gal-btn gal-prev" title="prev pic">‹</button>
         <button class="gal-btn gal-next" title="next pic">›</button>

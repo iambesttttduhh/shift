@@ -1325,6 +1325,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
+const WEB_BUILD = 31; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1336,6 +1337,13 @@ const MIME = {
   '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8'
 };
+
+function versionHtml(buf) {
+  try {
+    return buf.toString().replace(/app\.js\?v=\d+/g, 'app.js?v=' + WEB_BUILD)
+                         .replace(/styles\.css\?v=\d+/g, 'styles.css?v=' + WEB_BUILD);
+  } catch (e) { return buf; }
+}
 
 function serveStatic(req, res, pathname) {
   let p = decodeURIComponent(pathname);
@@ -1349,7 +1357,7 @@ function serveStatic(req, res, pathname) {
         return fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, html) => {
           if (e2) { res.writeHead(404); return res.end('not found'); }
           res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
-          res.end(html);
+          res.end(versionHtml(html));
         });
       }
       res.writeHead(404); return res.end('not found');
@@ -1358,6 +1366,7 @@ function serveStatic(req, res, pathname) {
     const cache = ['.ttf', '.woff2', '.mp3', '.png', '.jpg', '.svg'].includes(ext)
       ? 'public, max-age=86400' : 'no-store';
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cache });
+    if (ext === '.html') return res.end(versionHtml(data));
     res.end(data);
   });
 }
@@ -1422,7 +1431,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.0  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.0)');
+  console.log('  ✦✦✦  frfr build v3.1  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.1)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
