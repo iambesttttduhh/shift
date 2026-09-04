@@ -217,7 +217,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.1';
+const APP_VER = '3.2';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
@@ -246,7 +246,7 @@ function renderLanding() {
           <div class="marquee m1"><span>double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍 double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍</span></div>
           <div class="marquee m2"><span>yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍 yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍</span></div>
         </div>
-        <div class="ver-tag">v3.1 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.2 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }

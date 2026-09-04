@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const net = require('net');
+const zlib = require('zlib');
 const tls = require('tls');
 
 /* ------------------------------------------------------------------ config */
@@ -1428,10 +1429,71 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res, pathname);
 });
 
+/* ------------------------------------------------------------------ auto-update */
+// One-click forever: start.bat loops; if a newer build exists on GitHub, the server
+// downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
+const APP_VERSION = 32; // keep in sync with public/latest.json
+const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
+  'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
+const EXIT_RESTART = 99;
+
+function unzipBuf(buf) {
+  let e = buf.length - 22;
+  const min = Math.max(0, buf.length - 22 - 65536);
+  while (e >= min && buf.readUInt32LE(e) !== 0x06054b50) e--;
+  if (e < min) throw new Error('not a zip');
+  const count = buf.readUInt16LE(e + 10);
+  let off = buf.readUInt32LE(e + 16);
+  const files = [];
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) throw new Error('bad zip index');
+    const method = buf.readUInt16LE(off + 10);
+    const csize = buf.readUInt32LE(off + 20);
+    const nlen = buf.readUInt16LE(off + 28);
+    const elen = buf.readUInt16LE(off + 30);
+    const clen = buf.readUInt16LE(off + 32);
+    const lho = buf.readUInt32LE(off + 42);
+    const name = buf.slice(off + 46, off + 46 + nlen).toString();
+    const nl = buf.readUInt16LE(lho + 26), ex = buf.readUInt16LE(lho + 28);
+    const dstart = lho + 30 + nl + ex;
+    const raw = buf.slice(dstart, dstart + csize);
+    files.push({ name, raw: method === 0 ? Buffer.from(raw) : zlib.inflateRawSync(raw) });
+    off += 46 + nlen + elen + clen;
+  }
+  return files;
+}
+
+async function checkForUpdates() {
+  if (process.env.FRFR_NO_UPDATE) return;
+  try {
+    const r = await fetch(UPDATE_BASE + 'latest.json', { signal: AbortSignal.timeout(8000) });
+    const meta = await r.json();
+    const latest = Number(meta.v) || 0;
+    if (latest <= APP_VERSION) return;
+    console.log('');
+    console.log('  ⬆️  frfr v' + meta.tag + ' is out (u have v3.' + (APP_VERSION - 30) + ') — auto-updating, one sec…');
+    const zr = await fetch(UPDATE_BASE + (meta.zip || 'frfr-latest.zip'), { signal: AbortSignal.timeout(60000) });
+    const zbuf = Buffer.from(await zr.arrayBuffer());
+    console.log('  📥 downloaded ' + Math.round(zbuf.length / 1048576 * 10) / 10 + ' MB ✅');
+    let n = 0, failed = [];
+    for (const f of unzipBuf(zbuf)) {
+      if (f.name.endsWith('/')) continue;
+      const dest = path.normalize(path.join(ROOT, f.name));
+      if (!dest.startsWith(ROOT) || f.name.startsWith('data/')) continue; // never touch user data
+      try { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.writeFileSync(dest, f.raw); n++; }
+      catch (x) { failed.push(f.name); }
+    }
+    console.log('  📦 updated ' + n + ' files ✅' + (failed.length ? '  (skipped: ' + failed.join(', ') + ' — they were busy, run again)' : ''));
+    console.log('  ✨ updated! restarting… (the window will blink, that is normal)');
+    setTimeout(() => process.exit(EXIT_RESTART), 800);
+  } catch (e) { /* offline or github down -> just run what we have */ }
+}
+
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.1  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.1)');
+  console.log('  ✦✦✦  frfr build v3.2  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.2)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
+  setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });
