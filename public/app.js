@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.8';
+const APP_VER = '3.9';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
@@ -270,7 +270,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.8 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.9 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -740,14 +740,7 @@ function initFeed(keepScroll) {
       <div class="feed" id="feed"><div class="spin"></div></div>
       <div class="swipe-tip">⚡ for u — double-tap a profile to send a fren request 💌 · scroll past the ones u dont vibe with</div>
     </div>`;
-  $('#feed-refresh').onclick = () => initFeed();
-  renderFeedFilterbar();
-  const feed = $('#feed');
-  feed.addEventListener('scroll', () => {
-    if (feed.scrollTop + feed.clientHeight > feed.scrollHeight - 420) loadFeedPage();
-  }, { passive: true });
-  loadFeedPage();
-  if (keepScroll && scrollPos) feed.scrollTop = scrollPos;
+  // watchdog FIRST so even a crash below still shows the visible error card
   setTimeout(() => {
     const el = $('#feed');
     if (el && el.querySelector('.spin') && !el.querySelector('.feed-card')) {
@@ -756,6 +749,14 @@ function initFeed(keepScroll) {
       if (rb) rb.onclick = () => initFeed();
     }
   }, 15000);
+  $('#feed-refresh').onclick = () => initFeed();
+  try { renderFeedFilterbar(); } catch (fbErr) { console.error('filterbar', fbErr); }
+  const feed = $('#feed');
+  feed.addEventListener('scroll', () => {
+    if (feed.scrollTop + feed.clientHeight > feed.scrollHeight - 420) loadFeedPage();
+  }, { passive: true });
+  loadFeedPage();
+  if (keepScroll && scrollPos) feed.scrollTop = scrollPos;
 }
 
 function renderFeedFilterbar() {
@@ -809,7 +810,8 @@ function renderFeedFilterbar() {
     vibePop.style.display = open ? 'none' : 'block';
     cityPop.style.display = 'none';
   };
-  $('#ff-clear', bar).onclick = () => {
+  const ffClear = $('#ff-clear', bar);
+  if (ffClear) ffClear.onclick = () => {
     state.feedFilter = { scope: 'city', city: '', vibes: [] };
     initFeed();
   };
