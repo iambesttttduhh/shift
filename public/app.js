@@ -228,7 +228,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.1 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.2 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }

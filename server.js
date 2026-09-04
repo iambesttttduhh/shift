@@ -81,6 +81,24 @@ const GRADS = [
 
 const GENDERS = ['girl', 'boy', 'non-binary', 'prefer not to say'];
 
+/* demo-fren portrait pool (bundled, AI-generated, cached by browser) */
+const BOT_PICS = {
+  boy: ['/pics/teen01.jpg', '/pics/teen03.jpg', '/pics/teen05.jpg', '/pics/teen07.jpg', '/pics/teen09.jpg'],
+  girl: ['/pics/teen02.jpg', '/pics/teen04.jpg', '/pics/teen06.jpg', '/pics/teen08.jpg', '/pics/teen10.jpg']
+};
+function botPhotos(gender, seedStr) {
+  const pool = BOT_PICS[gender === 'girl' ? 'girl' : 'boy'];
+  let h = 0;
+  for (const ch of String(seedStr)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const first = pool[h % pool.length];
+  const photos = [first];
+  if (h % 3 === 0) {
+    const second = pool[(h + 1 + Math.floor(h / 7)) % pool.length];
+    if (second !== first) photos.push(second);
+  }
+  return photos;
+}
+
 /* ------------------------------------------------------------------- utils */
 const uuid = () => crypto.randomUUID();
 
@@ -328,6 +346,11 @@ function loadDb() {
     if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
     if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
     if (!u.emailKey) { u.emailKey = normalizeEmailKey(u.email); migrated++; } // v1.10: mailbox key
+    if (u.isBot && !(u.photos && u.photos.length)) { // v2.2: portraits for demo frens
+      u.photos = botPhotos(u.gender, u.username);
+      if (!u.photo) u.photo = u.photos[0];
+      migrated++;
+    }
   }
   if (!Array.isArray(db.requests)) db.requests = []; // v1.8: friend requests
   if (migrated) { saveDbNow(); console.log('[frfr] migration: verified', migrated, 'existing accounts'); }
@@ -450,7 +473,7 @@ function seedBots() {
         bio: pick(BOT_BIOS),
         vibes,
         avatar: { emoji: pick(EMOJIS), grad: randInt(0, GRADS.length - 1) },
-        photos: [],
+        photos: botPhotos(gender, username),
         isBot: true, emailVerified: true,
         createdAt: Date.now() - randInt(1, 60) * 86400000
       });
@@ -1198,7 +1221,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.1  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.1)');
+  console.log('  ✦✦✦  frfr build v2.2  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.2)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
