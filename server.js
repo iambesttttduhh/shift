@@ -757,19 +757,30 @@ addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
   const q = new URL(req.url, 'http://x').searchParams;
   const page = Math.max(0, parseInt(q.get('page') || '0', 10) || 0);
   const limit = Math.min(20, Math.max(1, parseInt(q.get('limit') || '8', 10) || 8));
+  const scope = q.get('scope') === 'india' ? 'india' : 'city';
+  const cityFilter = (q.get('city') || '').trim().toLowerCase();
+  const vibeFilters = (q.get('vibes') || '').split(',').map(s => s.trim()).filter(s => VIBES.some(v => v.id === s)).slice(0, 5);
   const myCity = user.city.toLowerCase();
   const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
   const rejectedByMe = new Set(db.requests.filter(r => r.from === user.id && r.status === 'rejected').map(r => r.to));
   const pendingFromMe = new Set(db.requests.filter(r => r.from === user.id && r.status === 'pending').map(r => r.to));
   const likedMePending = new Set(db.requests.filter(r => r.to === user.id && r.status === 'pending').map(r => r.from));
 
-  const pool = db.users.filter(u =>
+  let pool = db.users.filter(u =>
     u.id !== user.id &&
     u.role !== 'admin' &&
-    u.city.toLowerCase() === myCity &&
     !frenIds.has(u.id) &&
     !rejectedByMe.has(u.id)
   );
+  if (scope === 'city') {
+    pool = pool.filter(u => u.city.toLowerCase() === myCity);
+  } else if (cityFilter) {
+    pool = pool.filter(u => u.city.toLowerCase() === cityFilter);
+  }
+  if (vibeFilters.length) {
+    pool = pool.filter(u => vibeFilters.every(v => (u.vibes || []).includes(v)));
+  }
+  pool = pool;
   // people who requested u first show up first; rest in a stable (per-user) shuffled order
   pool.sort((a, b) => {
     const la = likedMePending.has(b.id) ? 1 : 0, lb = likedMePending.has(a.id) ? 1 : 0;
@@ -784,7 +795,19 @@ addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
     _likesYou: likedMePending.has(u.id),
     _reqStatus: pendingFromMe.has(u.id) ? 'pending' : 'none'
   }));
-  sendJson(res, 200, { items, total, page, done: page * limit + items.length >= total, city: user.city });
+  // city facets for the filter dropdown (based on the full non-fren pool, ignoring city/vibe filters)
+  const facetBase = db.users.filter(u =>
+    u.id !== user.id && u.role !== 'admin' && !frenIds.has(u.id) && !rejectedByMe.has(u.id)
+  );
+  const cityFacets = new Map();
+  for (const u of facetBase) cityFacets.set(u.city, (cityFacets.get(u.city) || 0) + 1);
+  const topCities = [...cityFacets.entries()].map(([c, n]) => ({ city: c, count: n }))
+    .sort((a, b) => b.count - a.count).slice(0, 30);
+  sendJson(res, 200, {
+    items, total, page, done: page * limit + items.length >= total,
+    city: user.city, scope, cityFilter, vibes: vibeFilters,
+    cities: topCities
+  });
 });
 
 addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) => {
@@ -1221,7 +1244,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.3  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.3)');
+  console.log('  ✦✦✦  frfr build v2.4  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.4)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

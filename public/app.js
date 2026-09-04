@@ -45,7 +45,8 @@ const state = {
   muted: localStorage.getItem('frfr_muted') === '1',
   pending: null,   // { token, email, name, mailMode, devCode } during email verification
   reqCount: 0,     // pending incoming friend requests
-  feed: { items: [], page: 0, done: false, loading: false }
+  feed: { items: [], page: 0, done: false, loading: false },
+  feedFilter: { scope: 'city', city: '', vibes: [] }   // vibes = AND-match interests
 };
 
 /* cat reaction animations (happy 😸 on like/accept · sad 😿 on reject) */
@@ -229,7 +230,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.3 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.4 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -595,8 +596,9 @@ async function doLogout() {
 /* ============================================================
    FEED — scroll profiles, double-tap to send a friend request 💌
    ============================================================ */
-function initFeed() {
+function initFeed(keepScroll) {
   stopTimers();
+  const scrollPos = keepScroll ? (($('#feed') || {}).scrollTop || 0) : 0;
   state.feed = { items: [], page: 0, done: false, loading: false };
   $('#view-root').innerHTML = `
     <div class="feed-wrap">
@@ -604,16 +606,109 @@ function initFeed() {
         <div class="deck-count" id="feed-count"></div>
         <button class="btn btn-ghost btn-sm" id="feed-refresh">↺ refresh</button>
       </div>
+      <div class="feed-filterbar" id="feed-filterbar"></div>
       <div class="feed" id="feed"><div class="spin"></div></div>
       <div class="swipe-tip">double-tap a profile = friend request 💌 · scroll past the ones u dont vibe with</div>
     </div>`;
   $('#feed-refresh').onclick = () => initFeed();
+  renderFeedFilterbar();
   const feed = $('#feed');
-  if (state.user.city !== initFeed.lastCity) { initFeed.lastCity = state.user.city; }
   feed.addEventListener('scroll', () => {
     if (feed.scrollTop + feed.clientHeight > feed.scrollHeight - 420) loadFeedPage();
   }, { passive: true });
   loadFeedPage();
+  if (keepScroll && scrollPos) feed.scrollTop = scrollPos;
+}
+
+function renderFeedFilterbar() {
+  const bar = $('#feed-filterbar');
+  if (!bar) return;
+  const f = state.feedFilter;
+  const m = state.meta;
+  const cityBtnLabel = f.scope === 'india'
+    ? (f.city ? '📍 ' + esc(f.city) : '🇮🇳 whole india')
+    : '📍 my city';
+  bar.innerHTML = `
+    <div class="ff-left">
+      <button class="ff-scope ${f.scope === 'india' ? 'alt' : ''}" id="ff-scope">${cityBtnLabel} ▾</button>
+      <button class="ff-vibes-btn ${f.vibes.length ? 'on' : ''}" id="ff-vibes-btn">✨ interests${f.vibes.length ? ' · ' + f.vibes.length : ''}</button>
+      ${f.vibes.length || (f.scope === 'india' && f.city) ? '<button class="ff-clear" id="ff-clear">✕ clear</button>' : ''}
+    </div>
+    <div class="ff-vibe-pop" id="ff-vibe-pop" style="display:none">
+      <div class="ff-vibe-head">match ppl who have <b>all</b> of these:</div>
+      <div class="ff-vibe-grid">${m.vibes.map(v => `<button class="vibe-pick ${f.vibes.includes(v.id) ? 'on' : ''}" data-v="${v.id}">${v.emoji} ${esc(v.label)}</button>`).join('')}</div>
+      <div class="ff-vibe-actions">
+        <button class="btn btn-ghost btn-sm" id="ff-vibe-clear">clear</button>
+        <button class="btn btn-primary btn-sm" id="ff-vibe-done">show matches →</button>
+      </div>
+    </div>
+    <div class="ff-city-pop" id="ff-city-pop" style="display:none">
+      <div class="ff-pop-title">pick a city</div>
+      <button class="ff-city-row ${f.scope === 'city' ? 'on' : ''}" data-c="">
+        <span>📍 my city only</span><i>${esc(state.user.city)}</i>
+      </button>
+      <button class="ff-city-row ${f.scope === 'india' && !f.city ? 'on' : ''}" data-c="INDIA">
+        <span>🇮🇳 whole india</span><i>everywhere</i>
+      </button>
+      <div class="ff-pop-title" style="margin-top:8px">or a specific city</div>
+      <div class="ff-city-list">
+        ${(m.cities || []).map(c => `<button class="ff-city-row ${f.scope === 'india' && f.city === c.toLowerCase() ? 'on' : ''}" data-c="${esc(c)}"><span>📍 ${esc(c)}</span><i>${(m.__cityCounts || {})[c] || ''}</i></button>`).join('')}
+      </div>
+    </div>`;
+
+  const scopeBtn = $('#ff-scope', bar);
+  const vibeBtn = $('#ff-vibes-btn', bar);
+  const cityPop = $('#ff-city-pop', bar);
+  const vibePop = $('#ff-vibe-pop', bar);
+
+  scopeBtn.onclick = () => {
+    const open = cityPop.style.display !== 'none';
+    cityPop.style.display = open ? 'none' : 'block';
+    vibePop.style.display = 'none';
+  };
+  vibeBtn.onclick = () => {
+    const open = vibePop.style.display !== 'none';
+    vibePop.style.display = open ? 'none' : 'block';
+    cityPop.style.display = 'none';
+  };
+  $('#ff-clear', bar).onclick = () => {
+    state.feedFilter = { scope: 'city', city: '', vibes: [] };
+    initFeed();
+  };
+  cityPop.querySelectorAll('.ff-city-row').forEach(r => r.onclick = () => {
+    const c = r.dataset.c;
+    if (c === 'INDIA') { f.scope = 'india'; f.city = ''; }
+    else if (c === '') { f.scope = 'city'; f.city = ''; }
+    else { f.scope = 'india'; f.city = c; }
+    initFeed();
+  });
+  vibePop.querySelectorAll('.vibe-pick').forEach(v => v.onclick = () => {
+    const id = v.dataset.v;
+    if (f.vibes.includes(id)) f.vibes = f.vibes.filter(x => x !== id);
+    else if (f.vibes.length < 5) f.vibes.push(id);
+    else return toast('max 5 interests bestie', 'bad');
+    v.classList.toggle('on');
+    vibeBtn.classList.toggle('on', f.vibes.length > 0);
+    vibeBtn.textContent = '✨ interests' + (f.vibes.length ? ' · ' + f.vibes.length : '');
+    const clr = $('#ff-clear', bar);
+    if (clr) clr.style.display = (f.vibes.length || (f.scope === 'india' && f.city)) ? '' : 'none';
+  });
+  $('#ff-vibe-clear', bar).onclick = () => {
+    f.vibes = [];
+    vibePop.querySelectorAll('.vibe-pick').forEach(x => x.classList.remove('on'));
+    vibeBtn.classList.remove('on');
+    vibeBtn.textContent = '✨ interests';
+    const clr = $('#ff-clear', bar);
+    if (clr) clr.style.display = (f.scope === 'india' && f.city) ? '' : 'none';
+  };
+  $('#ff-vibe-done', bar).onclick = () => initFeed();
+  document.addEventListener('click', function ffOutside(e) {
+    if (!$('#feed-filterbar')) return document.removeEventListener('click', ffOutside);
+    if (!e.target.closest('#feed-filterbar')) {
+      cityPop.style.display = 'none';
+      vibePop.style.display = 'none';
+    }
+  });
 }
 
 async function loadFeedPage() {
@@ -621,12 +716,29 @@ async function loadFeedPage() {
   if (f.loading || f.done) return;
   f.loading = true;
   try {
-    const r = await api('/api/feed?page=' + f.page + '&limit=6');
+    const fl = state.feedFilter;
+    const qs = new URLSearchParams({ page: f.page, limit: 6 });
+    qs.set('scope', fl.scope);
+    if (fl.scope === 'india' && fl.city) qs.set('city', fl.city);
+    if (fl.vibes.length) qs.set('vibes', fl.vibes.join(','));
+    const r = await api('/api/feed?' + qs.toString());
     f.items = f.items.concat(r.items);
     f.page++;
     f.done = r.done;
     const count = $('#feed-count');
-    if (count) count.innerHTML = '<b>' + r.total + '</b> frens in <b>' + esc(state.user.city) + '</b>';
+    if (count) {
+      const fl = state.feedFilter;
+      const where = fl.scope === 'city' ? esc(state.user.city)
+        : (fl.city ? '📍 ' + esc(fl.city) : '🇮🇳 india');
+      const withV = fl.vibes.length ? ' · ✨ ' + fl.vibes.map(id => { const v = state.meta.vibeById[id] || state.meta.vibes.find(x => x.id === id); return v ? v.emoji : ''; }).join('') : '';
+      count.innerHTML = '<b>' + r.total + '</b> frens · ' + where + withV;
+    }
+    // stash city facet counts for the dropdown
+    if (r.cities) {
+      const map = {};
+      r.cities.forEach(c => { map[c.city] = c.count + ' ppl'; });
+      state.meta.__cityCounts = map;
+    }
     const feedEl = $('#feed');
     if (!feedEl) { f.loading = false; return; }
     const empty = $('.feed-empty', feedEl);
@@ -638,7 +750,7 @@ async function loadFeedPage() {
         <div class="feed-empty">
           <div class="big">🫶</div>
           <h3>no more profiles rn</h3>
-          <p>u seen everyone in ${esc(state.user.city)}! change city from ur profile or check back later 👀</p>
+          <p>u seen everyone matching these filters! try ✨ fewer interests, 🇮🇳 whole india, or check back later 👀</p>
           <button class="btn btn-primary" id="feed-refill">↺ check again</button>
         </div>`;
       const b = $('#feed-refill');
