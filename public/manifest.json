@@ -1,0 +1,21 @@
+{
+  "name": "frfr. \u2014 make frens in ur city",
+  "short_name": "frfr.",
+  "description": "teen fren-matching for india. scroll ur for-u feed, double-tap, yap.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d14",
+  "theme_color": "#0d0d14",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

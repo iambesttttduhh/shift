@@ -241,8 +241,9 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.5';
+const APP_VER = '3.6';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
+window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
 
@@ -269,7 +270,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.5 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.6 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -1174,11 +1175,11 @@ async function openChat(matchId, otherUser) {
 
   const scroll = $('#chat-scroll');
   let otherReadAt = 0;
-  const renderMsgs = (msgs) => {
+  const renderMsgs = (msgs, showTyping) => {
     scroll.innerHTML = msgs.length ? msgs.map(m => `
       <div class="bubble ${m.fromMe ? 'mine' : 'theirs'}">${esc(m.text)}
         <div class="bubble-time">${clockTime(m.at)}${m.fromMe && m.at <= otherReadAt ? ' <span class="read-tick">✓✓</span>' : (m.fromMe ? ' <span class="read-tick dim">✓</span>' : '')}</div>
-      </div>`).join('') + (arguments[1] ? '<div class="typing-row"><span class="typing-dots"><i></i><i></i><i></i></span></div>' : '')
+      </div>`).join('') + (showTyping ? '<div class="typing-row"><span class="typing-dots"><i></i><i></i><i></i></span></div>' : '')
       : `<div class="empty-deck" style="padding:40px 10px"><div class="big">👋</div><h3 style="font-size:16px">say hi to ${esc(otherUser.name)}</h3><p>matching was step 1, yapping is step 2 · try the 🎲</p></div>`;
     scroll.scrollTop = scroll.scrollHeight;
   };

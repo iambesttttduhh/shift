@@ -349,6 +349,7 @@ function loadDb() {
     if (!u.emailKey) { u.emailKey = normalizeEmailKey(u.email); migrated++; } // v1.10: mailbox key
     if (u.xp === undefined) { u.xp = 0; u.level = 1; u.streak = { count: 0, last: null, best: 0 }; }
     if (!Array.isArray(u.blocked)) u.blocked = []; // v3.4: block system
+    if (u.isBot && !u.lastSeen) u.lastSeen = Date.now() - Math.floor(Math.random() * 30 * 60000); // v3.6: some demo frens look online
     if (u.isBot && !(u.photos && u.photos.length)) { // v2.2: portraits for demo frens
       u.photos = botPhotos(u.gender, u.username);
       if (!u.photo) u.photo = u.photos[0];
@@ -730,6 +731,25 @@ function dailyQuest(user) {
   }
   return { state: user.quest };
 }
+const BOT_LINES = {
+  greet: ['heyy 👋', 'hii! finally u texted 😄', 'yo yo 🖐️', 'heyy wassup 😌', 'hii hii 👋💜'],
+  question: ['hmm good q… tbh idk 😭', 'easy — food first, thoughts later 🍕', 'ok lemme think… nah forgot 💀', 'haha depends, u first 👀', 'thats such a u question 😂'],
+  bye: ['gn! dream of pani puri 🌙', 'byee come back soon 🥺', 'nooo 5 more mins of yapping 😭', 'okok byee 💜'],
+  vibe: ['HAHA stopp 😭', 'no bc same 💀', 'u have main character energy ngl ✨', 'wait thats lowkey iconic', 'fr fr?? 😳', 'ok ur funny, we match 😌', 'saying this to my frens tmrw 😂', 'u passed the vibe check 💚', 'brb telling my mom abt u 😭', 'ok but same energy fr', '💀💀💀 dead', 'ur so real for that 🫡', 'not u being iconic again 😌', 'the way i agree 💯', 'chaos. i respect it 😄'],
+  food: ['ok now im hungry, happy? 🍕', 'maggi supremacy, no debate 🍜', 'momos >>> everything else 🥟'],
+  city: ['ur city has the better food ngl 📍', 'same city gang 😄', 'we r basically neighbours then 🏠']
+};
+
+function botReply(text) {
+  const t = String(text || '').toLowerCase();
+  if (/\b(hi+|hello+|hey+|yo|hola|namaste|sup)\b/.test(t)) return pick(BOT_LINES.greet);
+  if (/\b(bye|gn|good night|cya|see ya|tata)\b/.test(t)) return pick(BOT_LINES.bye);
+  if (t.includes('?')) return pick(BOT_LINES.question);
+  if (/\b(food|pizza|maggi|momos|biryani|burger|chai|coffee)\b/.test(t)) return pick(BOT_LINES.food);
+  if (/\b(city|mumbai|delhi|bangalore|bengaluru|pune|hyderabad|chennai|jaipur|kolkata)\b/.test(t)) return pick(BOT_LINES.city);
+  return pick(BOT_LINES.vibe);
+}
+
 function isBlocked(a, b) {
   return (Array.isArray(a.blocked) && a.blocked.includes(b.id)) || (Array.isArray(b.blocked) && b.blocked.includes(a.id));
 }
@@ -1207,12 +1227,14 @@ addRoute('GET', '/api/matches/:id/messages', { auth: true }, (req, res, params, 
   if (!match) return;
   const otherId = match.a === user.id ? match.b : match.a;
   const other = findUser(otherId);
+  const now = Date.now();
   const msgs = db.messages
-    .filter(m => m.matchId === match.id)
+    .filter(m => m.matchId === match.id && m.at <= now)
     .slice(-200)
     .map(m => ({ id: m.id, text: m.text, at: m.at, fromMe: m.from === user.id }));
-  const now = Date.now();
-  const otherTyping = !!(match.typing && match.typing[other.id] && now - match.typing[other.id] < 3500);
+  const humanTyping = !!(match.typing && match.typing[other.id] && now - match.typing[other.id] < 3500);
+  const botPending = !!(other.isBot && db.messages.some(m => m.matchId === match.id && m.from === other.id && m.at > now));
+  const otherTyping = humanTyping || botPending;
   const otherReadAt = (match.read && match.read[other.id]) || 0;
   sendJson(res, 200, { messages: msgs, user: publicUser(other), otherTyping, otherReadAt });
 });
@@ -1227,6 +1249,13 @@ addRoute('POST', '/api/matches/:id/messages', { auth: true }, (req, res, params,
   const msg = { id: uid('msg'), matchId: match.id, from: user.id, text, at: Date.now() };
   db.messages.push(msg);
   questProgress(user, 'msgs');
+  // v3.6: demo frens reply back (scheduled a couple secs in the future; appears via poll)
+  if (otherP && otherP.isBot && !otherP.banned && Math.random() < 0.9) {
+    const d1 = 1800 + Math.floor(Math.random() * 2400);
+    db.messages.push({ id: uid('msg'), matchId: match.id, from: otherP.id, text: botReply(text), at: Date.now() + d1 });
+    if (Math.random() < 0.18) db.messages.push({ id: uid('msg'), matchId: match.id, from: otherP.id, text: pick(BOT_LINES.vibe), at: Date.now() + d1 + 1600 + Math.floor(Math.random() * 1800) });
+    otherP.lastSeen = Date.now(); // bots are "active" while yapping
+  }
   const up = addXp(user, 5, 'yapped');
   saveDb();
   sendJson(res, 200, { message: { id: msg.id, text: msg.text, at: msg.at, fromMe: true }, xpGain: 5, leveledUp: up ? up.leveledUp : null, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1) });
@@ -1407,7 +1436,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 35; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 36; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1514,7 +1543,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 35; // keep in sync with public/latest.json
+const APP_VERSION = 36; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1574,8 +1603,8 @@ async function checkForUpdates() {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.5  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.5)');
+  console.log('  ✦✦✦  frfr build v3.6  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.6)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });
