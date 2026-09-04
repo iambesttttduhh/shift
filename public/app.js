@@ -238,8 +238,11 @@ function renderLanding() {
         <div class="auth-card" id="auth-card"></div>
       </div>
     </div>
-        <div class="marquee"><span>double-tap to match ★ ur for-u feed ⚡ ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;double-tap to match ★ ur for-u feed ⚡ ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;</span></div>
-        <div class="ver-tag">v2.9 ✦ if u can read this, u got the newest build</div>
+        <div class="tickers">
+          <div class="marquee m1"><span>double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍 double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍</span></div>
+          <div class="marquee m2"><span>yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍 yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍</span></div>
+        </div>
+        <div class="ver-tag">v3.0 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -255,7 +258,6 @@ function renderAuthCard() {
       <button data-tab="signup" class="${!isLogin ? 'on' : ''}">sign up</button>
     </div>
     <form id="auth-form" autocomplete="off"></form>
-    ${isLogin ? `<div class="admin-hint">🛡️ admin demo → username <code>admin</code> · password <code>admin123</code></div>` : ''}
   `;
   $$('.tab-toggle button', card).forEach(b => b.onclick = () => { authTab = b.dataset.tab; renderAuthCard(); });
 
