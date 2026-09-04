@@ -725,3 +725,12 @@ code.kbd { background: rgba(255,255,255,.08); padding: 2px 7px; border-radius: 6
   .feed-info .card-bio { font-size: 13.5px; }
   .rail-btn { width: 48px; height: 48px; font-size: 20px; bottom: auto; }
 }
+
+/* ---------------------------------------------------- v1.9: gmail delivery */
+.mail-card { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r-md); padding: 15px; margin-bottom: 18px; }
+.mail-steps { font-size: 13px; color: var(--dim); margin-bottom: 12px; line-height: 1.55; }
+.mail-steps b { color: var(--ink); }
+.mail-steps ol { margin: 6px 0 8px 18px; }
+.mail-steps li { margin-bottom: 3px; }
+.mail-pill { display: inline-block; font-size: 12.5px; font-weight: 800; padding: 6px 13px; border-radius: 999px; border: 1px dashed rgba(255,255,255,.3); color: var(--dim); }
+.mail-pill.on { background: rgba(204,255,51,.12); border: 1px solid rgba(204,255,51,.5); color: var(--lime); }

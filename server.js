@@ -9,6 +9,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const net = require('net');
+const tls = require('tls');
 
 /* ------------------------------------------------------------------ config */
 const PORT = Number(process.env.PORT) || 3000;
@@ -130,31 +132,132 @@ function hashCode(uidv, code) {
 }
 function makeCode() { return String(crypto.randomInt(1000, 10000)); }
 
+function mailHtml(name, code) {
+  return `<div style="font-family:Arial,sans-serif;background:#0a0a0f;color:#f4f4ef;padding:32px;border-radius:16px">
+    <h2 style="color:#ccff33">hey ${name} 👋</h2>
+    <p>ur frfr verification code is:</p>
+    <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#ccff33">${code}</p>
+    <p style="color:#9a9aae">expires in 10 minutes. dont share it with anyone fr 🤫</p>
+  </div>`;
+}
+
+/* getMailConfig: gmail SMTP (db) → gmail SMTP (env) → resend → demo */
+function getMailConfig() {
+  db.settings = db.settings || {};
+  const s = db.settings.mail || {};
+  if (s.user && s.appPass) return { mode: 'gmail', user: s.user, pass: s.appPass, host: 'smtp.gmail.com', port: 587 };
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) return { mode: 'gmail', user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASS, host: 'smtp.gmail.com', port: 587 };
+  if (process.env.RESEND_API_KEY) return { mode: 'resend' };
+  return { mode: 'demo' };
+}
+
+/* minimal zero-dependency SMTP client (STARTTLS + AUTH PLAIN) */
+function smtpSendMail({ host, port = 587, user, pass, from, to, subject, html, skipTls = false }) {
+  return new Promise((resolve, reject) => {
+    let sock;
+    let buf = '';
+    let pending = [];
+    let step = 'greet';
+    let done = false;
+    const timer = setTimeout(() => fail(new Error('smtp timeout — no answer from ' + host)), 15000);
+    const fail = (e) => { if (done) return; done = true; clearTimeout(timer); try { sock && sock.destroy(); } catch (x) {} reject(e); };
+    const ok = () => { if (done) return; done = true; clearTimeout(timer); try { sock.write('QUIT\r\n'); setTimeout(() => { try { sock.end(); } catch (x) {} }, 120); } catch (x) {} resolve({ queued: true }); };
+    const send = (s) => sock.write(s + '\r\n');
+
+    const sendAuth = () => {
+      const secret = Buffer.concat([Buffer.from([0]), Buffer.from(user), Buffer.from([0]), Buffer.from(pass)]).toString('base64');
+      step = 'auth'; send('AUTH PLAIN ' + secret);
+    };
+    const upgradeTls = () => {
+      sock.removeListener('data', onRaw);
+      const up = tls.connect({ socket: sock, servername: host, rejectUnauthorized: false }, () => {
+        sock = up;
+        attach(up);
+        step = 'ehlo2';
+        send('EHLO frfr.local');
+      });
+      up.on('error', fail);
+    };
+    const handle = (code, full) => {
+      switch (step) {
+        case 'greet': if (code !== 220) return fail(new Error('smtp greeting ' + code)); step = 'ehlo'; send('EHLO frfr.local'); break;
+        case 'ehlo': if (code !== 250) return fail(new Error('EHLO rejected: ' + full)); if (skipTls) sendAuth(); else { step = 'starttls'; send('STARTTLS'); } break;
+        case 'starttls': if (code !== 220) return fail(new Error('STARTTLS rejected: ' + full)); upgradeTls(); break;
+        case 'ehlo2': if (code !== 250) return fail(new Error('EHLO2 rejected: ' + full)); sendAuth(); break;
+        case 'auth': if (code !== 235) return fail(new Error('auth rejected — check the app password (' + code + ')')); step = 'mail'; send('MAIL FROM:<' + from + '>'); break;
+        case 'mail': if (code !== 250) return fail(new Error('MAIL FROM rejected: ' + full)); step = 'rcpt'; send('RCPT TO:<' + to + '>'); break;
+        case 'rcpt': if (code !== 250) return fail(new Error('recipient rejected: ' + full)); step = 'data'; send('DATA'); break;
+        case 'data': if (code !== 354) return fail(new Error('DATA rejected: ' + full)); {
+          const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
+          const body = b64(html).replace(/(.{76})/g, '$1\r\n');
+          const msg =
+            'From: frfr <' + from + '>\r\n' +
+            'To: <' + to + '>\r\n' +
+            'Subject: =?UTF-8?B?' + b64(subject) + '?=\r\n' +
+            'MIME-Version: 1.0\r\n' +
+            'Content-Type: text/html; charset=UTF-8\r\n' +
+            'Content-Transfer-Encoding: base64\r\n\r\n' + body + '\r\n.';
+          send(msg);
+          step = 'dot';
+          break;
+        }
+        case 'dot': if (code !== 250) return fail(new Error('message rejected: ' + full)); ok(); break;
+        default: break;
+      }
+    };
+    const onLine = (line) => {
+      pending.push(line);
+      const m = /^(\d{3})([ -])/.exec(line);
+      if (!m) return;
+      if (m[2] === '-') return;
+      const code = parseInt(m[1], 10);
+      const full = pending.join(' | '); pending = [];
+      try { handle(code, full); } catch (e) { fail(e); }
+    };
+    const onRaw = (chunk) => {
+      buf += chunk.toString('utf8');
+      let idx;
+      while ((idx = buf.indexOf('\r\n')) >= 0) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        onLine(line);
+        if (done) return;
+      }
+    };
+    const attach = (s) => {
+      s.on('data', onRaw);
+      s.on('error', fail);
+      s.on('close', () => { if (!done) fail(new Error('connection closed early')); });
+    };
+    sock = net.connect({ host, port });
+    attach(sock);
+  });
+}
+
 async function sendVerificationEmail(email, name, code) {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) {
-    console.log(`[frfr] DEMO MAIL → ${email} code: ${code} (set RESEND_API_KEY to send real emails)`);
-    return 'demo';
+  const cfg = getMailConfig();
+  if (cfg.mode === 'gmail') {
+    try {
+      await smtpSendMail({ host: cfg.host, port: cfg.port, user: cfg.user, pass: cfg.pass, from: cfg.user, to: email, subject: code + ' is ur frfr verification code', html: mailHtml(name, code) });
+      console.log('[frfr] GMAIL MAIL → ' + email + ' (via ' + cfg.user + ')');
+      return 'gmail';
+    } catch (e) {
+      console.error('[frfr] gmail send failed:', e.message, '→ falling back to demo');
+    }
   }
-  try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'frfr <onboarding@resend.dev>',
-        to: [email],
-        subject: `${code} is ur frfr verification code`,
-        html: `<div style="font-family:Arial,sans-serif;background:#0a0a0f;color:#f4f4ef;padding:32px;border-radius:16px">
-          <h2 style="color:#ccff33">hey ${name} 👋</h2>
-          <p>ur frfr verification code is:</p>
-          <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#ccff33">${code}</p>
-          <p style="color:#9a9aae">expires in 10 minutes. dont share it with anyone fr 🤫</p>
-        </div>`
-      })
-    });
-    if (!r.ok) { console.error('[frfr] resend failed:', r.status, await r.text().catch(() => '')); return 'demo'; }
-    return 'sent';
-  } catch (e) { console.error('[frfr] resend error:', e.message); return 'demo'; }
+  if (cfg.mode === 'resend') {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'frfr <onboarding@resend.dev>', to: [email], subject: code + ' is ur frfr verification code', html: mailHtml(name, code) })
+      });
+      if (!r.ok) { console.error('[frfr] resend failed:', r.status, await r.text().catch(() => '')); }
+      else { console.log('[frfr] RESEND MAIL → ' + email); return 'resend'; }
+    } catch (e) { console.error('[frfr] resend error:', e.message); }
+  }
+  console.log('[frfr] DEMO MAIL → ' + email + ' code: ' + code + ' (configure Gmail in admin panel for real emails)');
+  return 'demo';
 }
 
 function issueVerification(user) {
@@ -806,6 +909,45 @@ addRoute('DELETE', '/api/admin/users/:id', { auth: true }, (req, res, params, bo
   sendJson(res, 200, { ok: true });
 });
 
+addRoute('GET', '/api/admin/mail', { auth: true }, (req, res, params, body, user) => {
+  if (!requireAdmin(req, res, user)) return;
+  const cfg = getMailConfig();
+  sendJson(res, 200, { mode: cfg.mode, user: cfg.mode === 'gmail' ? cfg.user : null });
+});
+
+addRoute('POST', '/api/admin/mail', { auth: true }, (req, res, params, body, user) => {
+  if (!requireAdmin(req, res, user)) return;
+  const g = String(body.gmail || '').trim().toLowerCase();
+  const p = String(body.appPass || '').replace(/\s+/g, '');
+  if (!GMAIL_RE.test(g)) return bad(res, 'thats not a gmail address 📧');
+  if (p.length < 16 || p.length > 40) return bad(res, 'app password should be the 16-character one from Google');
+  db.settings = db.settings || {};
+  db.settings.mail = { user: g, appPass: p };
+  saveDb();
+  sendJson(res, 200, { ok: true, mode: 'gmail', user: g });
+});
+
+addRoute('POST', '/api/admin/mail/clear', { auth: true }, (req, res, params, body, user) => {
+  if (!requireAdmin(req, res, user)) return;
+  db.settings = db.settings || {};
+  delete db.settings.mail;
+  saveDb();
+  sendJson(res, 200, { ok: true, mode: 'demo' });
+});
+
+addRoute('POST', '/api/admin/mail/test', { auth: true }, async (req, res, params, body, user) => {
+  if (!requireAdmin(req, res, user)) return;
+  const cfg = getMailConfig();
+  if (cfg.mode !== 'gmail') return bad(res, 'save ur gmail + app password first 📧');
+  const to = GMAIL_RE.test(String(body.to || '').trim()) ? String(body.to).trim().toLowerCase() : cfg.user;
+  try {
+    await smtpSendMail({ host: cfg.host, port: cfg.port, user: cfg.user, pass: cfg.pass, from: cfg.user, to, subject: 'frfr test — email delivery works 🎉', html: mailHtml('admin', '1234').replace('4242', '1234') });
+    sendJson(res, 200, { ok: true, to });
+  } catch (e) {
+    sendJson(res, 200, { ok: false, error: e.message });
+  }
+});
+
 addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body, user) => {
   if (!requireAdmin(req, res, user)) return;
   const t = findUser(params.id);
@@ -960,7 +1102,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.8  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v1.8)');
+  console.log('  ✦✦✦  frfr build v1.9  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v1.9)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

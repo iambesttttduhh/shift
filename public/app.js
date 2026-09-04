@@ -199,7 +199,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.8 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v1.9 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -1124,6 +1124,31 @@ async function renderAdmin() {
         <div class="stat-card purple"><b>${s.signupsWeek}</b><span>signups (7d)</span></div>
       </div>
 
+      <h2 class="page-title" style="font-size:17px">email delivery 📧</h2>
+      <p class="page-sub" id="mail-status">loading…</p>
+      <div class="mail-card">
+        <div class="mail-steps">
+          <b>how to get ur app password (2 mins):</b>
+          <ol>
+            <li>go to <b>myaccount.google.com</b> → <b>security</b></li>
+            <li>turn <b>2-step verification ON</b> (needed for app passwords)</li>
+            <li>search <b>"App passwords"</b> in the search bar → create one (name: frfr)</li>
+            <li>Google shows a <b>16-character password</b> — paste both below 👇</li>
+          </ol>
+          <span class="muted-dim">codes get sent from <b>ur gmail</b> to users' inboxes. the app password is stored only in this app's data file on ur machine.</span>
+        </div>
+        <div class="frow">
+          <div class="field"><label>ur gmail</label><input id="mail-gmail" placeholder="you@gmail.com" autocomplete="off"></div>
+          <div class="field"><label>app password (16 chars)</label><input id="mail-pass" type="password" placeholder="abcd efgh ijkl mnop" autocomplete="off"></div>
+        </div>
+        <div class="err-line" id="mail-err"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="mail-save">💾 save & use gmail</button>
+          <button class="btn btn-ghost btn-sm" id="mail-test">📨 send test email</button>
+          <button class="btn btn-ghost btn-sm" id="mail-clear">🧪 back to demo mode</button>
+        </div>
+      </div>
+
       <h2 class="page-title" style="font-size:17px">city leaderboard 📍</h2>
       <p class="page-sub">users per city · ${s.cities.top.length} shown</p>
       ${s.cities.top.map(c => `
@@ -1169,6 +1194,43 @@ async function renderAdmin() {
     drawRows('');
     $('#admin-q').oninput = (e) => drawRows(e.target.value);
     $('#admin-refresh').onclick = () => renderAdmin();
+
+    // ---- email delivery wiring ----
+    const mailStatus = $('#mail-status');
+    try {
+      const mc = await api('/api/admin/mail');
+      mailStatus.innerHTML = mc.mode === 'gmail'
+        ? '<span class="mail-pill on">✉️ gmail connected — codes send from ' + esc(mc.user) + '</span>'
+        : '<span class="mail-pill">🧪 demo mode — codes shown on screen only (no mail key)</span>';
+      if (mc.user) $('#mail-gmail').value = mc.user;
+    } catch (x) {
+      mailStatus.innerHTML = '<span class="mail-pill">🧪 demo mode</span>';
+    }
+    $('#mail-save').onclick = async () => {
+      const err = $('#mail-err'); err.textContent = '';
+      try {
+        await api('/api/admin/mail', { method: 'POST', body: { gmail: $('#mail-gmail').value, appPass: $('#mail-pass').value } });
+        toast('gmail delivery saved 📧', 'good');
+        renderAdmin();
+      } catch (x) { err.textContent = x.message; }
+    };
+    $('#mail-test').onclick = async () => {
+      const err = $('#mail-err'); err.textContent = '';
+      const btn = $('#mail-test'); btn.disabled = true; btn.textContent = 'sending…';
+      try {
+        const r = await api('/api/admin/mail/test', { method: 'POST', body: { to: $('#mail-gmail').value } });
+        if (r.ok) { toast('test email sent to ' + r.to + ' 📨 check inbox!', 'good'); err.textContent = ''; }
+        else err.textContent = 'send failed: ' + r.error;
+      } catch (x) { err.textContent = x.message; }
+      btn.disabled = false; btn.textContent = '📨 send test email';
+    };
+    $('#mail-clear').onclick = async () => {
+      try {
+        await api('/api/admin/mail/clear', { method: 'POST', body: {} });
+        toast('back to demo mode 🧪');
+        renderAdmin();
+      } catch (x) { toast(x.message, 'bad'); }
+    };
   } catch (e) {
     root.innerHTML = `<div class="empty-deck"><div class="big">🛡️</div><h3>admin eyes only</h3><p>${esc(e.message)}</p></div>`;
   }

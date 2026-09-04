@@ -1,3 +1,3 @@
-✦✦✦ v1.8 CONFIRMED — newest server on port 3000 ✦✦✦
-new: scroll feed + double-tap friend requests + requests inbox + photo galleries
-open: localhost:3000/?v=18
+✦✦✦ v1.9 CONFIRMED — newest server on port 3000 ✦✦✦
+new: codes send via REAL gmail (admin panel → email delivery → paste app password)
+open: localhost:3000/?v=19

@@ -55,6 +55,16 @@ public/
 data/db.json         # runtime data (gitignored, auto-created)
 ```
 
+## 📧 Real email delivery (Gmail)
+
+Verification codes send through **your own Gmail** via app password — configured right from the **admin panel → email delivery 📧**:
+
+1. Google Account → **Security** → turn on **2-step verification**
+2. Search **"App passwords"** → create one (16 characters)
+3. Paste your gmail + app password in the admin panel → **save & use gmail** → **send test email**
+
+The app ships with a built-in zero-dependency SMTP client (STARTTLS + AUTH PLAIN). Without config it runs in **demo mode** (code shown on screen). If Gmail misbehaves it auto-falls back to demo so nobody gets stuck. `GMAIL_USER` + `GMAIL_APP_PASS` env vars work too. Resend (`RESEND_API_KEY`) also supported.
+
 ## 📮 API quick reference
 
 | Method | Route | What |
@@ -67,6 +77,8 @@ data/db.json         # runtime data (gitignored, auto-created)
 | POST | `/api/requests/:id/accept` or `/reject` | decide a request |
 | GET | `/api/matches` | your frens |
 | GET/POST | `/api/matches/:id/messages` | chat |
+| GET/POST | `/api/admin/mail` | configure gmail delivery (admin) |
+| POST | `/api/admin/mail/test` | send a test email (admin) |
 | GET | `/api/admin/stats` | admin dashboard data |
 | DELETE | `/api/admin/users/:id` | remove a user (admin) |
 
