@@ -227,7 +227,7 @@ function renderLanding() {
     <div class="landing-inner">
       <div class="hero">
         <div class="logo-big">frfr<span class="dot">.</span></div>
-        <p class="tagline">make <b>frens</b> in ur city. scroll the <b>spark</b> feed, double-tap ur favs, and start yapping. <b>no cap.</b> 📍India</p>
+        <p class="tagline">make <b>frens</b> in ur city. scroll ur <b>for u</b> feed, double-tap ur favs, and start yapping. <b>no cap.</b> 📍India</p>
         <div class="hero-chips">
           <span class="hchip hot">🔥 ${st.frens}+ frens vibing</span>
           <span class="hchip">📍 ${st.cities}+ cities</span>
@@ -238,8 +238,8 @@ function renderLanding() {
         <div class="auth-card" id="auth-card"></div>
       </div>
     </div>
-        <div class="marquee"><span>double-tap to match ★ spark ur feed ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;double-tap to match ★ spark ur feed ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;</span></div>
-        <div class="ver-tag">v2.8 ✦ if u can read this, u got the newest build</div>
+        <div class="marquee"><span>double-tap to match ★ ur for-u feed ⚡ ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;double-tap to match ★ ur for-u feed ⚡ ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;</span></div>
+        <div class="ver-tag">v2.9 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -583,7 +583,7 @@ function renderNav() {
     { id: 'matches', icon: '💬', label: 'chats' },
     { id: 'requests', icon: '💌', label: 'requests', dot: true },
     { id: 'live', icon: '⚡', label: 'LIVE', big: true, live: true },
-    { id: 'feed', icon: '✨', label: 'spark' },
+    { id: 'feed', icon: '⚡', label: 'for u' },
     ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : [{ id: 'profile', icon: '😎', label: 'me' }])
   ];
   $('#nav').innerHTML = tabs.map(t =>
@@ -683,7 +683,7 @@ function initFeed(keepScroll) {
       </div>
       <div class="feed-filterbar" id="feed-filterbar"></div>
       <div class="feed" id="feed"><div class="spin"></div></div>
-      <div class="swipe-tip">✨ spark feed — double-tap a profile to send a fren request 💌 · scroll past the ones u dont vibe with</div>
+      <div class="swipe-tip">⚡ for u — double-tap a profile to send a fren request 💌 · scroll past the ones u dont vibe with</div>
     </div>`;
   $('#feed-refresh').onclick = () => initFeed();
   renderFeedFilterbar();
@@ -825,7 +825,7 @@ async function loadFeedPage() {
       feedEl.innerHTML = `
         <div class="feed-empty">
           <div class="big">🫶</div>
-          <h3>u sparked everyone rn</h3>
+          <h3>ur all caught up 👀</h3>
           <p>no more profiles matching these filters! try ✨ fewer interests, 🇮🇳 whole india, or check back later 👀</p>
           <button class="btn btn-primary" id="feed-refill">↺ check again</button>
         </div>`;
@@ -843,7 +843,7 @@ async function loadFeedPage() {
       const sp = $('.spin', feedEl);
       if (sp && !f.items.length) sp.remove();
       if (!f.items.length) {
-        feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t load the spark feed</h3><p>' + esc(e.message) + '</p><button class="btn btn-primary" id="feed-retry">↺ retry</button></div>';
+        feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t load ur for u feed</h3><p>' + esc(e.message) + '</p><button class="btn btn-primary" id="feed-retry">↺ retry</button></div>';
         const rb = $('#feed-retry');
         if (rb) rb.onclick = () => initFeed();
       }
@@ -1037,7 +1037,7 @@ async function renderMatches() {
           <div class="big">🥺</div>
           <h3>no frens yet</h3>
           <p>double-tap someone from ${esc(state.user.city)} on the feed — or accept a request 💌</p>
-          <button class="btn btn-primary" id="go-swipe">✨ open spark</button>
+          <button class="btn btn-primary" id="go-swipe">⚡ open for u</button>
         </div>`;
       $('#go-swipe').onclick = () => setView('feed');
       return;
