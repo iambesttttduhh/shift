@@ -545,6 +545,12 @@ function authUser(req) {
 
 /* ------------------------------------------------------------- api: public */
 addRoute('GET', '/api/meta', {}, (req, res) => {
+  const bots = db.users.filter(u => u.isBot); // v3.7: world feels alive — demo frens drift online/offline
+  if (bots.length && Math.random() < 0.34) {
+    const n = 2 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < n; i++) { const b = bots[Math.floor(Math.random() * bots.length)]; if (b) b.lastSeen = Date.now() - Math.floor(Math.random() * 100000); }
+    saveDb();
+  }
   const nonAdmin = db.users.filter(u => u.role !== 'admin');
   const citySet = new Set(nonAdmin.map(u => u.city.toLowerCase()));
   sendJson(res, 200, {
@@ -1184,14 +1190,16 @@ addRoute('GET', '/api/matches', { auth: true }, (req, res, params, body, user) =
       if (!other) return null;
       const msgs = db.messages.filter(x => x.matchId === m.id);
       const last = msgs[msgs.length - 1] || null;
+      const now = Date.now();
+      const unread = !!(last && last.from !== user.id && last.at <= now && last.at > ((m.read && m.read[user.id]) || 0));
       return {
         id: m.id, at: m.at, user: publicUser(other),
         lastMessage: last ? { text: last.text, at: last.at, fromMe: last.from === user.id } : null,
-        msgCount: msgs.length
+        msgCount: msgs.length, unread
       };
     })
     .filter(Boolean)
-    .sort((a, b) => (b.lastMessage ? b.lastMessage.at : b.at) - (a.lastMessage ? a.lastMessage.at : a.at));
+    .sort((a, b) => ((b.unread ? 1 : 0) - (a.unread ? 1 : 0)) || ((b.lastMessage ? b.lastMessage.at : b.at) - (a.lastMessage ? a.lastMessage.at : a.at)));
   sendJson(res, 200, { matches: mine });
 });
 
@@ -1436,7 +1444,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 36; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 37; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1543,7 +1551,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 36; // keep in sync with public/latest.json
+const APP_VERSION = 37; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1603,8 +1611,8 @@ async function checkForUpdates() {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.6  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.6)');
+  console.log('  ✦✦✦  frfr build v3.7  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.7)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });

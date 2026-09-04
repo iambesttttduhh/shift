@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.6';
+const APP_VER = '3.7';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
@@ -270,7 +270,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.6 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.7 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -1134,9 +1134,9 @@ async function renderMatches() {
           <div class="match-row-mid">
             <div class="match-row-name">${esc(mt.user.name)} <span class="muted-dim">${mt.user.age} · ${esc(mt.user.city)}</span>
               ${!mt.lastMessage ? '<span class="new-dot" title="new match"></span>' : ''}</div>
-            <div class="match-row-last">${mt.lastMessage ? (mt.lastMessage.fromMe ? 'u: ' : '') + esc(mt.lastMessage.text) : 'new match — say hi 👋'}</div>
+            <div class="match-row-last">${mt.unread ? '<b class="unread-preview">' : ''}${mt.lastMessage ? (mt.lastMessage.fromMe ? 'u: ' : '') + esc(mt.lastMessage.text) : 'new match — say hi 👋'}${mt.unread ? '</b>' : ''}</div>
           </div>
-          <span class="match-row-time">${mt.lastMessage ? timeAgo(mt.lastMessage.at) : timeAgo(mt.at)}</span>
+          <span class="match-row-time">${mt.lastMessage ? timeAgo(mt.lastMessage.at) : timeAgo(mt.at)}${mt.unread ? '<span class="unread-dot" title="new message"></span>' : ''}</span>
         </button>`).join('')}`;
     $$('.match-row', root).forEach(b => b.onclick = () => {
       const mt = r.matches.find(x => x.id === b.dataset.id);

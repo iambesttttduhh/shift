@@ -1,3 +1,3 @@
-✦✦✦ v3.6 CONFIRMED — newest server on port 3000 ✦✦✦
+✦✦✦ v3.7 CONFIRMED — newest server on port 3000 ✦✦✦
 new: sign up with ANY real email (yahoo/outlook/school mail...) — still 1 account per mailbox
-open: localhost:3000/?v=36
+open: localhost:3000/?v=37

@@ -1300,6 +1300,15 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
 .hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
 
+/* v3.7: unread badges */
+.unread-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: #3ddc63; margin-left: 6px; vertical-align: 1px;
+  box-shadow: 0 0 10px rgba(61,220,99,.9); animation: pulseDot 1.6s ease-in-out infinite;
+}
+@keyframes pulseDot { 50% { transform: scale(1.35); opacity: .75; } }
+.unread-preview { color: #f2f2f2; }
+
 /* v3.5: typing dots, read ticks, vibe badge, profile power */
 .typing-row { display: flex; justify-content: flex-start; margin: 6px 0 2px; }
 .typing-dots { display: inline-flex; gap: 4px; background: rgba(255,255,255,.09); border: 1px solid var(--line); padding: 9px 12px; border-radius: 16px 16px 16px 4px; }
@@ -1364,5 +1373,6 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
   .marquee span { animation: none !important; }
   .chat-dice:hover { transform: none; }
   .pc-fill { transition: none; }
+  .unread-dot { animation: none; }
   .btn:hover { transform: none; filter: none; }
 }
