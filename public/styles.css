@@ -111,6 +111,7 @@ a { color: var(--lime); text-decoration: none; }
   overflow: hidden; white-space: nowrap; padding: 9px 0;
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
+.ver-tag { margin-top: 14px; font-size: 11px; color: var(--dim); letter-spacing: .08em; text-transform: uppercase; font-weight: 700; opacity: .7; }
 .marquee span {
   display: inline-block;
   font-family: var(--font-display); font-weight: 500; font-size: 12px;
