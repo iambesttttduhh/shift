@@ -1300,6 +1300,27 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
 .hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
 
+/* v3.4: online dots, icebreaker dice, peek danger row */
+.on-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #3ddc63; margin-right: 6px; vertical-align: 1px;
+  box-shadow: 0 0 8px rgba(61,220,99,.8);
+}
+.chat-dice {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 12px;
+  width: 42px; height: 42px; font-size: 18px; cursor: pointer; flex: 0 0 auto;
+  transition: transform .12s ease;
+}
+.chat-dice:hover { transform: rotate(-14deg) scale(1.08); }
+.chat-dice:active { transform: scale(.94); }
+.peek-danger { display: flex; gap: 8px; margin-top: 8px; }
+.pd-btn {
+  flex: 1; padding: 8px 0; border-radius: 10px; cursor: pointer;
+  background: transparent; border: 1px solid rgba(255,90,120,.35);
+  color: #ff7a94; font-size: 12.5px; font-weight: 700; transition: background .12s ease;
+}
+.pd-btn:hover { background: rgba(255,90,120,.12); }
+
 /* micro-interactions + a11y focus + slim scrollbars */
 .btn { transition: transform .12s ease, filter .12s ease, box-shadow .12s ease; }
 .btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
@@ -1314,5 +1335,6 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @media (prefers-reduced-motion: reduce) {
   .lp-ring, .live-dot, .hud-chip.flame.lit, .hud-chip.quest.ready, .live-go, .tap-hint { animation: none !important; }
   .marquee span { animation: none !important; }
+  .chat-dice:hover { transform: none; }
   .btn:hover { transform: none; filter: none; }
 }

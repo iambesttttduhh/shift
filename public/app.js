@@ -25,6 +25,30 @@ function timeAgo(t) {
 function clockTime(t) {
   return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
+function isOnline(u) { return !!u && (u.lastSeen || 0) > Date.now() - 120000; }
+function onDot(u) { return isOnline(u) ? '<span class="on-dot" title="online now"></span>' : ''; }
+
+const ICEBREAKERS = [
+  'if ur life was a movie, whats the title? 🎬',
+  'chai or coffee — wrong answers only ☕',
+  'whats ur most unhinged take? 🤡',
+  '3 things u cant survive without? 🎒',
+  'which emoji describes u today? 😭',
+  'ur go-to hype song rn? 🎧',
+  'dream city to move to? 🌆',
+  'most useless superpower ud still want? ✨',
+  'pani puri — one bite or whole plate in 2 min? 🌊',
+  'ur red flag — be honest 🚩',
+  'best meme u saw this week? 💀',
+  'free day, no rules — whats the plan? 🎢',
+  'ur comfort show rn? 📺',
+  'dogs or cats and WHY 🐶',
+  'one thing u learned the hard way 💡',
+  'cringest thing u did as a kid? 🙈',
+  'if u could switch lives for a day, who wud it be? 🎭',
+  'ur 3am thoughts in one line? 🌙'
+];
+
 function gradCss(meta, i) {
   const gs = (meta && meta.grads && meta.grads.length) ? meta.grads : [{ from: '#7c3aed', to: '#ff4d8d' }];
   const g = gs[(Number.isInteger(i) && i >= 0 ? i : 0) % gs.length] || gs[0];
@@ -217,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.3';
+const APP_VER = '3.4';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
@@ -245,7 +269,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.3 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.4 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -637,6 +661,7 @@ function openSettingsMenu() {
         <button class="btn btn-ghost btn-block" id="st-explore">🧭 explore</button>
         <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '😸 cat animations: off' : '😸 cat animations: on'}</button>
         <button class="btn btn-primary btn-block" id="st-invite">🚀 invite frens — copy link</button>
+        <button class="btn btn-ghost btn-block" id="st-blocks">🚫 blocked frens</button>
         <button class="btn btn-pink btn-block" id="st-logout">🚪 log out</button>
         <button class="btn btn-ghost btn-block" id="st-close">close</button>
       </div>
@@ -654,6 +679,24 @@ function openSettingsMenu() {
     const link = 'https://cdn.statically.io/gh/iambesttttduhh/shift/arena/01a06b20-shift/download.html';
     try { await navigator.clipboard.writeText(link); toast('link copied — send it to ur gang 🚀', 'good'); }
     catch (e) { ov.remove(); prompt('copy this link and send it 🚀', link); }
+  };
+  $('#st-blocks', ov).onclick = async () => {
+    ov.remove();
+    let list = [];
+    try { list = (await api('/api/blocklist')).blocked || []; } catch (e) {}
+    const bov = overlayCard(`
+      <div class="match-card" style="max-width:330px">
+        <div class="match-title" style="font-size:24px">blocked frens 🚫</div>
+        <p class="match-sub">${list.length ? 'tap to unblock' : 'clean slate — nobody blocked ✨'}</p>
+        <div class="match-actions">
+          ${list.map(b => `<button class="btn btn-ghost btn-block ub-btn" data-id="${esc(b.id)}">↺ unblock @${esc(b.username)}</button>`).join('')}
+          <button class="btn btn-primary btn-block" id="ub-close">close</button>
+        </div>
+      </div>`);
+    $$('.ub-btn', bov).forEach(b => b.onclick = async () => {
+      try { await api('/api/unblock/' + b.dataset.id, { method: 'POST', body: {} }); b.textContent = '✅ unblocked'; b.disabled = true; } catch (x) { toast(x.message, 'bad'); }
+    });
+    $('#ub-close', bov).onclick = () => bov.remove();
   };
   $('#st-logout', ov).onclick = () => {
     ov.innerHTML = `
@@ -909,7 +952,7 @@ function feedCardHtml(u, idx = 0) {
       <div class="stamp like">FREN REQ 💌</div>
     </div>
     <div class="feed-info">
-      <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span> <span class="gen">· ${esc(u.gender)}</span></div>
+      <div class="card-name">${onDot(u)}${esc(u.name)} <span class="age">${u.age}</span> <span class="gen">· ${esc(u.gender)}</span></div>
       <div class="card-loc">📍 ${esc(u.city)} · @${esc(u.username)}</div>
       ${u.bio ? `<p class="card-bio">${esc(u.bio)}</p>` : ''}
       ${vibes ? `<div class="chips">${vibes}</div>` : ''}
@@ -1102,14 +1145,22 @@ async function openChat(matchId, otherUser) {
     <div class="chat-head">
       <button class="icon-btn" id="chat-back">←</button>
       ${avatarHtml(otherUser, 'sm')}
-      <div class="who"><b>${esc(otherUser.name)}</b><span>@${esc(otherUser.username)} · 📍 ${esc(otherUser.city)}</span></div>
+      <div class="who"><b>${onDot(otherUser)}${esc(otherUser.name)}</b><span>@${esc(otherUser.username)} · 📍 ${esc(otherUser.city)}</span></div>
+      <button class="icon-btn" id="chat-more" title="profile / block / report">⋯</button>
     </div>
     <div class="chat-scroll" id="chat-scroll"><div class="spin"></div></div>
     <form class="chat-input chat-input--static" id="chat-form">
+      <button class="chat-dice" type="button" id="chat-dice" title="icebreaker 🎲">🎲</button>
       <input id="chat-text" maxlength="1000" placeholder="yap something..." autocomplete="off">
       <button class="chat-send" type="submit">➤</button>
     </form>`;
   $('#chat-back').onclick = () => { stopTimers(); setView('matches'); };
+  $('#chat-more').onclick = () => openProfilePeek(otherUser);
+  $('#chat-dice').onclick = () => {
+    const inp = $('#chat-text');
+    inp.value = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
+    inp.focus();
+  };
 
   const scroll = $('#chat-scroll');
   const renderMsgs = (msgs) => {
@@ -1271,11 +1322,42 @@ function openProfilePeek(u) {
         <div class="match-actions" style="margin-top:14px">
           <button class="btn btn-pink btn-block" id="peek-like">💌 send friend request</button>
           <button class="btn btn-ghost btn-block" id="peek-close">close</button>
+          <div class="peek-danger">
+            <button class="pd-btn" id="peek-report">🚩 report</button>
+            <button class="pd-btn" id="peek-block">⛔ block</button>
+          </div>
         </div>
       </div>
     </div>`);
   $('.peek-x', ov).onclick = () => ov.remove();
   $('#peek-close', ov).onclick = () => ov.remove();
+  $('#peek-block', ov).onclick = async (e) => {
+    const b = e.target;
+    if (b.dataset.arm !== '1') { b.dataset.arm = '1'; b.textContent = '⛔ sure? tap again'; setTimeout(() => { b.dataset.arm = ''; b.textContent = '⛔ block'; }, 2500); return; }
+    try {
+      await api('/api/block/' + u.id, { method: 'POST', body: {} });
+      ov.remove(); toast('blocked 🚫 u wont see each other again', 'good');
+      if (state.view === 'feed') initFeed();
+    } catch (x) { toast(x.message, 'bad'); }
+  };
+  $('#peek-report', ov).onclick = () => {
+    ov.remove();
+    const reasons = [['spam', '🚫 spam / scam'], ['harassment', '😠 bullying / harassment'], ['fake', '🎭 fake account'], ['inappropriate', '🔞 inappropriate'], ['other', '❓ other']];
+    const rov = overlayCard(`
+      <div class="match-card" style="max-width:330px">
+        <div class="match-title" style="font-size:24px">report @${esc(u.username)}?</div>
+        <p class="match-sub">whats wrong? admins will check it 🛡️</p>
+        <div class="match-actions">
+          ${reasons.map(r => `<button class="btn btn-ghost btn-block rp-reason" data-r="${r[0]}">${r[1]}</button>`).join('')}
+          <button class="btn btn-ghost btn-block" id="rp-cancel">cancel</button>
+        </div>
+      </div>`);
+    $$('.rp-reason', rov).forEach(b => b.onclick = async () => {
+      try { await api('/api/report/' + u.id, { method: 'POST', body: { reason: b.dataset.r } }); rov.remove(); toast('reported 🚩 thank u for keeping frfr safe', 'good'); }
+      catch (x) { toast(x.message, 'bad'); }
+    });
+    $('#rp-cancel', rov).onclick = () => rov.remove();
+  };
   $('#peek-like', ov).onclick = async (e) => {
     const btn = e.target;
     btn.disabled = true;
@@ -1735,9 +1817,15 @@ let adminRows = [];
 
 async function renderAdmin() {
   const root = $('#view-root');
-  root.innerHTML = `<h2 class="page-title">admin panel 🛡️</h2><div class="spin"></div>`;
+  root.innerHTML = `<h2 class="page-title">admin panel 🛡️</h2><div class="spin"></div><div id="admin-reports"></div>`;
   try {
     const [stats, usersR] = await Promise.all([api('/api/admin/stats'), api('/api/admin/users')]);
+    api('/api/admin/reports').then(rr => {
+      const host = $('#admin-reports');
+      if (!host) return;
+      const list = rr.reports || [];
+      host.innerHTML = list.length ? `<div class="stat-grid" style="margin:14px 0"><div class="stat-box" style="grid-column:1/-1"><b>🚩</b><span>latest reports</span></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>by</th><th>against</th><th>reason</th><th>when</th></tr></thead><tbody>${list.map(rp => `<tr><td>@${esc(rp.by)}</td><td>@${esc(rp.against)}</td><td>${esc(rp.reason)}</td><td>${new Date(rp.at).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>` : '';
+    }).catch(() => {});
     adminRows = usersR.users;
     const s = stats;
     const maxUsers = Math.max(1, ...s.cities.top.map(c => c.users));

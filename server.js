@@ -348,6 +348,7 @@ function loadDb() {
     if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
     if (!u.emailKey) { u.emailKey = normalizeEmailKey(u.email); migrated++; } // v1.10: mailbox key
     if (u.xp === undefined) { u.xp = 0; u.level = 1; u.streak = { count: 0, last: null, best: 0 }; }
+    if (!Array.isArray(u.blocked)) u.blocked = []; // v3.4: block system
     if (u.isBot && !(u.photos && u.photos.length)) { // v2.2: portraits for demo frens
       u.photos = botPhotos(u.gender, u.username);
       if (!u.photo) u.photo = u.photos[0];
@@ -728,6 +729,10 @@ function dailyQuest(user) {
   }
   return { state: user.quest };
 }
+function isBlocked(a, b) {
+  return (Array.isArray(a.blocked) && a.blocked.includes(b.id)) || (Array.isArray(b.blocked) && b.blocked.includes(a.id));
+}
+
 function questProgress(user, kind, n = 1) {
   dailyQuest(user);
   const q = user.quest;
@@ -842,7 +847,8 @@ addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
     u.id !== user.id &&
     u.role !== 'admin' &&
     !frenIds.has(u.id) &&
-    !rejectedByMe.has(u.id)
+    !rejectedByMe.has(u.id) &&
+    !isBlocked(user, u)
   );
   if (scope === 'city') {
     pool = pool.filter(u => u.city.toLowerCase() === myCity);
@@ -882,9 +888,50 @@ addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
   });
 });
 
+addRoute('POST', '/api/block/:uid', { auth: true }, (req, res, params, body, user) => {
+  const t = findUser(params.uid);
+  if (!t || t.role === 'admin') return bad(res, 'no such user');
+  if (t.id === user.id) return bad(res, "u cant block urself 💀");
+  if (!Array.isArray(user.blocked)) user.blocked = [];
+  if (!user.blocked.includes(t.id)) user.blocked.push(t.id);
+  db.matches = db.matches.filter(m => !((m.a === user.id && m.b === t.id) || (m.a === t.id && m.b === user.id)));
+  db.requests = db.requests.filter(r => !((r.from === user.id && r.to === t.id) || (r.from === t.id && r.to === user.id)));
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
+addRoute('POST', '/api/unblock/:uid', { auth: true }, (req, res, params, body, user) => {
+  if (Array.isArray(user.blocked)) user.blocked = user.blocked.filter(id => id !== params.uid);
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
+addRoute('GET', '/api/blocklist', { auth: true }, (req, res, params, body, user) => {
+  const list = (user.blocked || []).map(id => { const u = findUser(id); return u ? { id: u.id, name: u.name, username: u.username } : null; }).filter(Boolean);
+  sendJson(res, 200, { blocked: list });
+});
+
+addRoute('POST', '/api/report/:uid', { auth: true }, (req, res, params, body, user) => {
+  const t = findUser(params.uid);
+  if (!t) return bad(res, 'no such user');
+  if (t.id === user.id) return bad(res, "u cant report urself 😭");
+  const reason = String((body && body.reason) || 'other').slice(0, 200);
+  if (!Array.isArray(db.reports)) db.reports = [];
+  db.reports.push({ id: uid('rp'), by: user.username, against: t.username, reason, at: Date.now() });
+  if (db.reports.length > 500) db.reports = db.reports.slice(-500);
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
+addRoute('GET', '/api/admin/reports', { auth: true, admin: true }, (req, res) => {
+  const list = (db.reports || []).slice(-50).reverse();
+  sendJson(res, 200, { reports: list });
+});
+
 addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) => {
   const target = findUser(body.targetId);
   if (!target || target.id === user.id || target.role === 'admin') return bad(res, 'invalid target');
+  if (isBlocked(user, target)) return bad(res, 'user not available 🚫');
   if (existingMatch(user.id, target.id)) return bad(res, 'yall are already frens 🤝');
 
   const mine = db.requests.find(r => r.from === user.id && r.to === target.id);
@@ -989,7 +1036,7 @@ addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, bod
   touchLobby(user, intent);
   // bot squash: 55% chance a demo fren "joins" after 1.5-3s simulated wait
   const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
-  const pool = db.users.filter(u => u.isBot && u.role !== 'admin' && !frenIds.has(u.id) &&
+  const pool = db.users.filter(u => u.isBot && u.role !== 'admin' && !frenIds.has(u.id) && !isBlocked(user, u) &&
     (intent === 'any' || (intent === 'girls' && u.gender === 'girl') || (intent === 'boys' && u.gender === 'boy')));
   if (pool.length && Math.random() < 0.8) {
     // prefer same city / shared vibes
@@ -1142,6 +1189,8 @@ addRoute('GET', '/api/matches/:id/messages', { auth: true }, (req, res, params, 
 addRoute('POST', '/api/matches/:id/messages', { auth: true }, (req, res, params, body, user) => {
   const match = getMatchIfParticipant(req, res, params.id, user);
   if (!match) return;
+  const otherP = findUser(match.a === user.id ? match.b : match.a);
+  if (otherP && isBlocked(user, otherP)) return bad(res, 'chat unavailable 🚫');
   const text = String(body.text || '').trim().slice(0, 1000);
   if (!text) return bad(res, 'say something 🗣️');
   const msg = { id: uid('msg'), matchId: match.id, from: user.id, text, at: Date.now() };
@@ -1327,7 +1376,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 33; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 34; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1433,7 +1482,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 33; // keep in sync with public/latest.json
+const APP_VERSION = 34; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1493,8 +1542,8 @@ async function checkForUpdates() {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.3  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.3)');
+  console.log('  ✦✦✦  frfr build v3.4  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.4)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });
