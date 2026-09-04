@@ -1221,7 +1221,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.2  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.2)');
+  console.log('  ✦✦✦  frfr build v2.3  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.3)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

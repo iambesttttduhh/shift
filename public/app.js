@@ -134,6 +134,7 @@ function confetti(n = 70) {
       background:${colors[i % colors.length]};animation-duration:${2.2 + Math.random() * 2}s;
       animation-delay:${Math.random() * .5}s;border-radius:${Math.random() > .5 ? '50%' : '2px'};`;
     fx.appendChild(c);
+    c.addEventListener('animationend', () => c.remove(), { once: true });
     setTimeout(() => c.remove(), 5200);
   }
 }
@@ -228,7 +229,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.2 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.3 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -608,9 +609,10 @@ function initFeed() {
     </div>`;
   $('#feed-refresh').onclick = () => initFeed();
   const feed = $('#feed');
+  if (state.user.city !== initFeed.lastCity) { initFeed.lastCity = state.user.city; }
   feed.addEventListener('scroll', () => {
     if (feed.scrollTop + feed.clientHeight > feed.scrollHeight - 420) loadFeedPage();
-  });
+  }, { passive: true });
   loadFeedPage();
 }
 
@@ -654,7 +656,7 @@ async function loadFeedPage() {
   f.loading = false;
 }
 
-function feedCardHtml(u) {
+function feedCardHtml(u, idx = 0) {
   const m = state.meta;
   const vibes = (u.vibes || []).map(id => {
     const v = m.vibes.find(x => x.id === id);
@@ -667,7 +669,7 @@ function feedCardHtml(u) {
   else if (u._likesYou) btn = `<button class="rail-btn likesyou" data-id="${esc(u.id)}" title="wants to be ur fren — tap back!">💌</button>`;
   else btn = `<button class="rail-btn like" data-id="${esc(u.id)}" title="double-tap or tap = friend request">❤</button>`;
   return `
-  <div class="feed-card" data-id="${esc(u.id)}" data-photo="0">
+  <div class="feed-card" data-id="${esc(u.id)}" data-photo="0" style="animation-delay:${Math.min((idx || 0) % 6, 5) * 60}ms">
     <div class="feed-media" style="background:${grad}">
       ${photos.length
         ? `<img class="feed-photo" src="${photos[0]}" alt="">`
@@ -677,6 +679,7 @@ function feedCardHtml(u) {
         <button class="gal-btn gal-next" title="next pic">›</button>
         <div class="gal-dots">${photos.map((_, di) => `<span class="${di === 0 ? 'on' : ''}"></span>`).join('')}</div>` : ''}
       ${u._likesYou ? '<div class="liked-me-flag">💌 wants to be ur fren</div>' : ''}
+      ${idx === 0 ? '<div class="tap-hint">👆 double-tap to send a fren request</div>' : ''}
       <div class="stamp like">FREN REQ 💌</div>
     </div>
     <div class="feed-info">
@@ -769,7 +772,8 @@ function heartBurst(x, y) {
   big.style.cssText = 'left:' + (x - 40) + 'px;top:' + (y - 40) + 'px;';
   big.textContent = ['💜', '💖', '❤️'][Math.floor(Math.random() * 3)];
   fx.appendChild(big);
-  setTimeout(() => big.remove(), 900);
+  big.addEventListener('animationend', () => big.remove(), { once: true });
+  setTimeout(() => big.remove(), 950);
   for (let i = 0; i < 10; i++) {
     const h = document.createElement('div');
     h.className = 'burst-heart';
@@ -778,7 +782,8 @@ function heartBurst(x, y) {
     h.style.cssText = 'left:' + x + 'px;top:' + y + 'px;--dx:' + Math.round(Math.cos(ang) * dist) + 'px;--dy:' + Math.round((Math.sin(ang) * dist - 60)) + 'px;font-size:' + (14 + Math.random() * 16) + 'px;';
     h.textContent = ['❤️', '💖', '💜', '🩷', '💕'][Math.floor(Math.random() * 5)];
     fx.appendChild(h);
-    setTimeout(() => h.remove(), 1100);
+    h.addEventListener('animationend', () => h.remove(), { once: true });
+    setTimeout(() => h.remove(), 1150);
   }
 }
 
@@ -869,7 +874,7 @@ async function openChat(matchId, otherUser) {
       <div class="who"><b>${esc(otherUser.name)}</b><span>@${esc(otherUser.username)} · 📍 ${esc(otherUser.city)}</span></div>
     </div>
     <div class="chat-scroll" id="chat-scroll"><div class="spin"></div></div>
-    <form class="chat-input" id="chat-form">
+    <form class="chat-input chat-input--static" id="chat-form">
       <input id="chat-text" maxlength="1000" placeholder="yap something..." autocomplete="off">
       <button class="chat-send" type="submit">➤</button>
     </form>`;
@@ -928,7 +933,10 @@ function renderExplore() {
   const root = $('#view-root');
   root.innerHTML = `
     <div class="explore-head">
-      <h2 class="page-title" style="margin-top:14px">explore 🧭</h2>
+      <div class="explore-tiles">
+        <button class="etile" id="et-nearby"><span>🛰️</span><b>near u</b><i>who's online rn</i></button>
+        <button class="etile etile-pink" id="et-vibe"><span>🎲</span><b>vibe check</b><i>random matchmaker</i></button>
+      </div>
       <div class="seg" id="ex-scope">
         <button data-s="city" class="on">📍 my city</button>
         <button data-s="india">🇮🇳 all india</button>
@@ -938,6 +946,8 @@ function renderExplore() {
     <div class="vibe-scroller" id="ex-vibes"><div class="spin"></div></div>
     <div id="ex-results"><div class="spin"></div></div>`;
 
+  $('#et-nearby').onclick = () => renderNearby();
+  $('#et-vibe').onclick = () => renderVibeCheck();
   $('#ex-scope').querySelectorAll('button').forEach(b => b.onclick = () => {
     exploreState.scope = b.dataset.s;
     root.querySelectorAll('#ex-scope button').forEach(x => x.classList.toggle('on', x === b));
@@ -1018,7 +1028,6 @@ function openProfilePeek(u) {
       <div class="peek-media" style="background:${gradCss(m, u.avatar.grad)}">
         ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
         <button class="peek-x">✕</button>
-        ${u._likesYou || false ? '' : ''}
       </div>
       <div class="peek-body">
         <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
@@ -1054,7 +1063,7 @@ async function renderNearby() {
   try {
     const r = await api('/api/nearby?radius=100');
     root.innerHTML = `
-      <h2 class="page-title" style="margin-top:14px">near u 🛰️</h2>
+      <div class="subview-head"><button class="icon-btn" id="nb-back">←</button><h2 class="page-title">near u 🛰️</h2></div>
       <p class="page-sub">${r.onlineCount} online now · ${r.sameCityCount} in ${esc(state.user.city)}</p>
       ${r.onlineNow.length ? `
         <h2 class="page-title" style="font-size:17px">🟢 online now</h2>
@@ -1067,6 +1076,7 @@ async function renderNearby() {
       <h2 class="page-title" style="font-size:17px">cities near ${esc(state.user.city)}</h2>
       ${r.nearCities.length ? `<div class="chips" style="padding:0 2px">${r.nearCities.map(c => `<span class="chip">📍 ${esc(c.city)} · ${c.users}</span>`).join('')}</div>` : '<p class="page-sub">just u out here so far 😄</p>'}
       <div class="section-gap"></div>`;
+    $('#nb-back').onclick = () => renderExplore();
     $$('.ocard', root).forEach(c => c.onclick = () => { try { openProfilePeek(JSON.parse(c.dataset.raw)); } catch (x) {} });
   } catch (e) {
     root.innerHTML = '<div class="empty-deck"><div class="big">💀</div><p>' + esc(e.message) + '</p></div>';
@@ -1079,10 +1089,11 @@ async function renderNearby() {
 async function renderVibeCheck() {
   const root = $('#view-root');
   root.innerHTML = `
-    <h2 class="page-title" style="margin-top:14px">vibe check 🎲</h2>
+    <div class="subview-head"><button class="icon-btn" id="vc-back">←</button><h2 class="page-title">vibe check 🎲</h2></div>
     <p class="page-sub">random matchmaker — could be destiny, could be chaos</p>
     <div id="vc-stage"><div class="spin"></div></div>
     <button class="btn btn-ghost btn-block" id="vc-again" style="margin-top:14px">🎲 someone else</button>`;
+  $('#vc-back').onclick = () => renderExplore();
   $('#vc-again').onclick = loadVibeCheck;
   await loadVibeCheck();
 }
@@ -1202,6 +1213,8 @@ async function decideRequest(id, action) {
       toast('request rejected ✕');
     }
     await loadMe();
+    const remain = $('#view-root').querySelectorAll('.req-row:not(.dim)').length;
+    if (remain === 0 && state.view === 'requests') renderRequests();
   } catch (e) { toast(e.message, 'bad'); }
 }
 
