@@ -341,7 +341,7 @@ function renderVerifyScreen() {
         <div style="font-size:52px;margin-bottom:6px">📬</div>
         <h2 class="auth-title">check ur email!</h2>
         <p class="auth-sub">we sent a <b>4-digit code</b> to<br><b style="color:var(--lime)">${esc(p.email)}</b><br>enter it below to verify <b>${esc(p.name)}</b> 🔐</p>
-        ${p.devCode ? `<div class="demo-code">🧪 demo mode (no mail key set)<br>ur code is: <b id="demo-code-num">${esc(p.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">set RESEND_API_KEY in server env to send real emails</span></div>` : ''}
+        ${p.devCode ? `<div class="demo-code">🧪 demo mode (no gmail connected yet)<br>ur code is: <b id="demo-code-num">${esc(p.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">admin panel → email delivery 📧 → add ur gmail app password to send real emails</span></div>` : ''}
         <form id="verify-form" autocomplete="off">
           <input class="vcode" id="vcode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autofocus>
           <div class="err-line" id="v-err"></div>
@@ -383,7 +383,7 @@ function renderVerifyScreen() {
       if (r.devCode) {
         p.devCode = r.devCode;
         const banner = $('.demo-code');
-        if (banner) $('#demo-code-num', banner) ? banner.innerHTML = `🧪 demo mode (no mail key set)<br>ur code is: <b id="demo-code-num">${esc(r.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">set RESEND_API_KEY in server env to send real emails</span>` : null;
+        if (banner) $('#demo-code-num', banner) ? banner.innerHTML = `🧪 demo mode (no gmail connected yet)<br>ur code is: <b id="demo-code-num">${esc(r.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">admin panel → email delivery 📧 → add ur gmail app password to send real emails</span>` : null;
       }
       $('#v-err').textContent = '';
       toast('new code sent 📨', 'good');
