@@ -326,7 +326,7 @@ let db = null;
 let saveTimer = null;
 
 function emptyDb() {
-  return { users: [], swipes: [], matches: [], messages: [], sessions: {}, meta: { createdAt: Date.now() } };
+  return { users: [], swipes: [], matches: [], messages: [], sessions: {}, requests: [], lobbies: [], settings: {}, meta: { createdAt: Date.now() } };
 }
 
 function loadDb() {
@@ -874,6 +874,98 @@ addRoute('GET', '/api/nearby', { auth: true }, (req, res, params, body, user) =>
   });
 });
 
+/* ---- vibe lobbies (Yubo-inspired quick-match) ---- */
+const LOBBY_TTL = 60 * 1000; // lobby heartbeat expires after 60s
+function touchLobby(user, intent) {
+  db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id && Date.now() - l.at < LOBBY_TTL);
+  const mine = db.lobbies.find(l => l.userId === user.id);
+  if (mine) { mine.at = Date.now(); mine.intent = intent || mine.intent; }
+  else db.lobbies.push({ userId: user.id, at: Date.now(), intent: intent || 'any' });
+  saveDb();
+}
+function findLobbyMatch(user, intent) {
+  const now = Date.now();
+  db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id && now - l.at < LOBBY_TTL);
+  const candidates = db.lobbies.filter(l => {
+    if (l.userId === user.id) return false;
+    const u = findUser(l.userId);
+    if (!u || u.role === 'admin') return false;
+    if (!intentCompat(intent, l.intent)) return false;
+    return true;
+  });
+  // prefer same city, then shared vibe, then anyone
+  candidates.sort((a, b) => {
+    const ua = findUser(a.userId), ub = findUser(b.userId);
+    const ca = ua.city.toLowerCase() === user.city.toLowerCase() ? 0 : 1;
+    const cb = ub.city.toLowerCase() === user.city.toLowerCase() ? 0 : 1;
+    if (ca !== cb) return ca - cb;
+    const va = (ua.vibes || []).some(v => (user.vibes || []).includes(v)) ? 0 : 1;
+    const vb = (ub.vibes || []).some(v => (user.vibes || []).includes(v)) ? 0 : 1;
+    return va - vb;
+  });
+  return candidates[0] || null;
+}
+function intentCompat(a, b) {
+  const A = a || 'any', B = b || 'any';
+  if (A === 'any' || B === 'any') return true;
+  return A === B;
+}
+
+addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, body, user) => {
+  const intent = ['any', 'girls', 'boys'].includes(body.intent) ? body.intent : 'any';
+  touchLobby(user, intent);
+  // bot squash: 55% chance a demo fren "joins" after 1.5-3s simulated wait
+  const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
+  const pool = db.users.filter(u => u.isBot && u.role !== 'admin' && !frenIds.has(u.id) &&
+    (intent === 'any' || (intent === 'girls' && u.gender === 'girl') || (intent === 'boys' && u.gender === 'boy')));
+  if (pool.length && Math.random() < 0.55) {
+    // prefer same city / shared vibes
+    pool.sort((a, b) => {
+      const ca = a.city.toLowerCase() === user.city.toLowerCase() ? 0 : 1;
+      const cb = b.city.toLowerCase() === user.city.toLowerCase() ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      const va = (a.vibes || []).some(v => (user.vibes || []).includes(v)) ? 0 : 1;
+      const vb = (b.vibes || []).some(v => (user.vibes || []).includes(v)) ? 0 : 1;
+      return va - vb;
+    });
+    const partner = pool[0];
+    // real-looking wait
+    await new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1500)));
+    if (!db.matches.some(m => (m.a === user.id && m.b === partner.id) || (m.b === user.id && m.a === partner.id))) {
+      db.matches.push({ id: uid('m'), pair: pairKey(user.id, partner.id), a: user.id, b: partner.id, at: Date.now() });
+      saveDb();
+    }
+    db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id);
+    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner) });
+  }
+  // check real humans waiting
+  const match = findLobbyMatch(user, intent);
+  if (match) {
+    const partner = findUser(match.userId);
+    db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id && l.userId !== match.userId);
+    if (!db.matches.some(m => (m.a === user.id && m.b === partner.id) || (m.b === user.id && m.a === partner.id))) {
+      db.matches.push({ id: uid('m'), pair: pairKey(user.id, partner.id), a: user.id, b: partner.id, at: Date.now() });
+      saveDb();
+    }
+    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner) });
+  }
+  const waitingSameIntent = (db.lobbies || []).filter(l => intentCompat(l.intent, intent)).length;
+  sendJson(res, 200, { status: 'waiting', waiting: waitingSameIntent + 1 });
+});
+
+addRoute('POST', '/api/lobby/leave', { auth: true }, (req, res, params, body, user) => {
+  db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id);
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
+addRoute('GET', '/api/lobby/status', { auth: true }, (req, res, params, body, user) => {
+  const now = Date.now();
+  db.lobbies = (db.lobbies || []).filter(l => now - l.at < LOBBY_TTL);
+  const online = db.users.filter(u => u.role !== 'admin' && (u.lastSeen || 0) > now - 120000).length;
+  sendJson(res, 200, { online, waiting: db.lobbies.length, inLobby: (db.lobbies || []).some(l => l.userId === user.id) });
+});
+
 addRoute('GET', '/api/vibe-check', { auth: true }, (req, res, params, body, user) => {
   const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
   const pool = db.users.filter(u => u.id !== user.id && u.role !== 'admin' && !frenIds.has(u.id));
@@ -1244,7 +1336,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.4  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.4)');
+  console.log('  ✦✦✦  frfr build v2.5  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.5)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

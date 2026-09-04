@@ -230,7 +230,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.4 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.5 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -474,6 +474,8 @@ function updateReqBadge() {
 
 function stopTimers() {
   if (state.chatTimer) { clearInterval(state.chatTimer); state.chatTimer = null; }
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  if (state.user) api('/api/lobby/leave', { method: 'POST', body: {} }).catch(() => {});
 }
 
 function renderShell() {
@@ -506,15 +508,15 @@ function renderShell() {
 function renderNav() {
   const u = state.user;
   const tabs = [
-    { id: 'matches', icon: '💬', label: 'frens' },
+    { id: 'matches', icon: '💬', label: 'chats' },
     { id: 'requests', icon: '💌', label: 'requests', dot: true },
-    { id: 'feed', icon: '🔥', label: 'feed', big: true },
-    { id: 'explore', icon: '🧭', label: 'explore' },
+    { id: 'live', icon: '⚡', label: 'LIVE', big: true, live: true },
+    { id: 'feed', icon: '🔥', label: 'swipe' },
     ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : [{ id: 'profile', icon: '😎', label: 'me' }])
   ];
   $('#nav').innerHTML = tabs.map(t =>
-    `<button class="nav-btn ${t.big ? 'big ' : ''}${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
-       <span class="ni">${t.icon}</span>${t.big ? '' : t.label}
+    `<button class="nav-btn ${t.big ? 'big live ' : ''}${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
+       ${t.big ? `<span class="live-dot"></span><span class="ni">${t.icon}</span><span class="big-label">LIVE</span>` : `<span class="ni">${t.icon}</span>${t.label}`}
        ${t.dot ? '<span class="nav-dot" id="nav-req-dot" style="display:none"></span>' : ''}
      </button>`).join('');
   $$('#nav .nav-btn').forEach(b => b.onclick = () => {
@@ -532,6 +534,7 @@ async function setView(v) {
   if (v === 'feed') { initFeed(); }
   else if (v === 'matches') { await renderMatches(); }
   else if (v === 'requests') { await renderRequests(); }
+  else if (v === 'live') { renderLive(); }
   else if (v === 'explore') { renderExplore(); }
   else if (v === 'nearby') { renderNearby(); }
   else if (v === 'vibecheck') { renderVibeCheck(); }
@@ -1236,6 +1239,144 @@ async function loadVibeCheck() {
     };
   } catch (e) {
     stage.innerHTML = '<div class="empty-deck"><div class="big">💀</div><p>' + esc(e.message) + '</p></div>';
+  }
+}
+
+/* ============================================================
+   LIVE ⚡ — Yubo-style quick match + live now
+   ============================================================ */
+let liveTimer = null;
+
+function renderLive() {
+  stopTimers();
+  const root = $('#view-root');
+  root.innerHTML = `
+    <div class="live-wrap">
+      <div class="live-hero">
+        <div class="live-pulse"><span class="lp-ring"></span><span class="lp-ring r2"></span><span class="lp-core">⚡</span></div>
+        <h2 class="page-title" style="margin:10px 0 2px">quick match</h2>
+        <p class="page-sub" id="live-online">seeing who's around…</p>
+      </div>
+      <div id="live-stage"></div>
+      <div class="live-intent" id="live-intent">
+        <button class="li-btn on" data-i="any">🎲 anyone</button>
+        <button class="li-btn" data-i="girls">👧 girls</button>
+        <button class="li-btn" data-i="boys">👦 boys</button>
+      </div>
+    </div>`;
+  let intent = 'any';
+  $$('#live-intent .li-btn').forEach(b => b.onclick = () => {
+    intent = b.dataset.i;
+    $$('#live-intent .li-btn').forEach(x => x.classList.toggle('on', x === b));
+  });
+  api('/api/lobby/status').then(s => {
+    const el = $('#live-online');
+    if (el) el.innerHTML = `🟢 <b>${s.online}</b> online rn · tap below to get matched instantly`;
+  }).catch(() => {});
+  renderLiveIdle();
+  function renderLiveIdle() {
+    if (state.view !== 'live') return;
+    $('#live-stage').innerHTML = `
+      <button class="btn btn-pink btn-block live-go" id="live-go">⚡ start quick match</button>
+      <p class="page-sub" style="text-align:center;margin-top:10px">u get matched 1-on-1 & become frens instantly 🤝</p>
+      <div class="section-gap"></div>
+      <div class="live-features">
+        <div class="lf-card" id="lf-explore"><span>🧭</span><div><b>explore</b><i>vibes, search, all-india</i></div></div>
+        <div class="lf-card" id="lf-nearby"><span>🛰️</span><div><b>near u</b><i>who's online now</i></div></div>
+        <div class="lf-card" id="lf-vibe"><span>🎲</span><div><b>vibe check</b><i>random matchmaker</i></div></div>
+      </div>`;
+    $('#live-go').onclick = () => startQuickMatch(intent, renderLiveIdle);
+    $('#lf-explore').onclick = () => renderExplore();
+    $('#lf-nearby').onclick = () => renderNearby();
+    $('#lf-vibe').onclick = () => renderVibeCheck();
+  }
+}
+
+async function startQuickMatch(intent, onDone) {
+  const stage = $('#live-stage');
+  if (!stage) return;
+  stage.innerHTML = `
+    <div class="matching-card">
+      <div class="match-scan"></div>
+      <div class="matching-emoji">👀</div>
+      <div class="matching-title">finding someone…</div>
+      <div class="matching-sub" id="mq-sub">scanning ur city first 📡</div>
+      <button class="btn btn-ghost btn-sm" id="mq-cancel" style="margin-top:14px">cancel</button>
+    </div>`;
+  const msgs = ['scanning ur city first 📡', 'checking who shares ur vibes ✨', 'poking the whole of india 🇮🇳', 'almost there… 👀'];
+  let mi = 0;
+  const mt = setInterval(() => { const el = $('#mq-sub'); if (el) el.textContent = msgs[++mi % msgs.length]; }, 900);
+  $('#mq-cancel').onclick = () => { clearInterval(mt); clearInterval(liveTimer); api('/api/lobby/leave', { method: 'POST', body: {} }).catch(() => {}); renderLive(); };
+  try {
+    const r = await api('/api/lobby/join', { method: 'POST', body: { intent } });
+    clearInterval(mt); clearInterval(liveTimer);
+    if (r.status === 'matched' && r.partner) {
+      state.matchesCount++;
+      confetti(70);
+      catAnimation('happy');
+      stage.innerHTML = `
+        <div class="live-match-card">
+          <div class="lmc-avatars">
+            <div class="mav" style="background:${gradCss(state.meta, state.user.avatar.grad)}">${state.user.photo ? `<img src="${state.user.photo}">` : esc(state.user.avatar.emoji)}</div>
+            <div class="match-heart">⚡</div>
+            <div class="mav" style="background:${gradCss(state.meta, r.partner.avatar.grad)}">${r.partner.photo ? `<img src="${r.partner.photo}">` : esc(r.partner.avatar.emoji)}</div>
+          </div>
+          <div class="match-title" style="font-size:30px">MATCHED!!</div>
+          <p class="match-sub">u & <b>${esc(r.partner.name)}</b> are frens now — say hi 👋</p>
+          <div class="match-actions">
+            <button class="btn btn-primary btn-block" id="lm-chat">open chat 💬</button>
+            <button class="btn btn-ghost btn-block" id="lm-again">⚡ match me again</button>
+          </div>
+        </div>`;
+      $('#lm-chat', stage).onclick = async () => {
+        state.view = 'matches'; renderNav();
+        await openChat(r.match.id, r.partner);
+      };
+      $('#lm-again', stage).onclick = () => startQuickMatch(intent, onDone);
+    } else {
+      // waiting room
+      stage.innerHTML = `
+        <div class="matching-card">
+          <div class="match-scan"></div>
+          <div class="matching-emoji">🛋️</div>
+          <div class="matching-title">ur in the waiting room</div>
+          <div class="matching-sub"><b id="wait-n">${r.waiting || 1}</b> ppl waiting · we'll ping the sec someone joins</div>
+          <button class="btn btn-ghost btn-sm" id="mq-cancel2" style="margin-top:14px">leave</button>
+        </div>`;
+      $('#mq-cancel2', stage).onclick = () => { api('/api/lobby/leave', { method: 'POST', body: {} }).catch(() => {}); renderLive(); };
+      liveTimer = setInterval(async () => {
+        try {
+          const rr = await api('/api/lobby/join', { method: 'POST', body: { intent } });
+          if (rr.status === 'matched' && rr.partner) {
+            clearInterval(liveTimer); liveTimer = null;
+            state.matchesCount++;
+            confetti(70);
+            catAnimation('happy');
+            stage.innerHTML = `
+              <div class="live-match-card">
+                <div class="lmc-avatars">
+                  <div class="mav" style="background:${gradCss(state.meta, state.user.avatar.grad)}">${state.user.photo ? `<img src="${state.user.photo}">` : esc(state.user.avatar.emoji)}</div>
+                  <div class="match-heart">⚡</div>
+                  <div class="mav" style="background:${gradCss(state.meta, rr.partner.avatar.grad)}">${rr.partner.photo ? `<img src="${rr.partner.photo}">` : esc(rr.partner.avatar.emoji)}</div>
+                </div>
+                <div class="match-title" style="font-size:30px">MATCHED!!</div>
+                <p class="match-sub">u & <b>${esc(rr.partner.name)}</b> are frens — say hi 👋</p>
+                <div class="match-actions">
+                  <button class="btn btn-primary btn-block" id="lm-chat">open chat 💬</button>
+                  <button class="btn btn-ghost btn-block" id="lm-again">⚡ match me again</button>
+                </div>
+              </div>`;
+            $('#lm-chat', stage).onclick = async () => { state.view = 'matches'; renderNav(); await openChat(rr.match.id, rr.partner); };
+            $('#lm-again', stage).onclick = () => startQuickMatch(intent, onDone);
+          } else {
+            const w = $('#wait-n'); if (w) w.textContent = rr.waiting || 1;
+          }
+        } catch (x) {}
+      }, 3000);
+    }
+  } catch (e) {
+    clearInterval(mt);
+    stage.innerHTML = `<div class="empty-deck"><div class="big">💀</div><p>${esc(e.message)}</p></div>`;
   }
 }
 

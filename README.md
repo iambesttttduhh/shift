@@ -10,6 +10,7 @@ Create an account with your email, enter your city, and **frfr** matchmakes you 
 - **Social-app interface** — 5-tab bottom bar (frens · requests · 🔥 feed · explore · me) with the feed as a center button, top action bar with 🧭 explore
 - **Explore 🧭** — vibe chips, search (name/@user/city/bio), 📍my-city or 🇮🇳 all-India scope, people grid with shared-vibe badges, tap for profile peek + request
 - **Feed filters** — on the feed itself: 📍 my city / 🇮🇳 whole india / any specific city from the dropdown, plus ✨ interest matching (pick up to 5 — shows people who have ALL of them)
+- **LIVE ⚡ quick match** (Yubo-inspired) — big pink LIVE center tab: pick anyone/girls/boys, hit start, get matched 1-on-1 instantly (scanning animation → waiting room → MATCHED → chat). Real users in the lobby match each other; demo frens keep it never-empty
 - **Vibe check 🎲** — random matchmaker card that picks people who share your vibes
 - **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
 - **Reels-style scroll feed** — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
@@ -79,6 +80,7 @@ The app ships with a built-in zero-dependency SMTP client (STARTTLS + AUTH PLAIN
 | GET | `/api/explore` | vibe filter + search people |
 | GET | `/api/nearby` | who's online now + cities near u |
 | GET | `/api/vibe-check` | random matchmaker pick |
+| POST | `/api/lobby/join` | quick-match lobby (Yubo-style instant 1-on-1) |
 | GET | `/api/feed` | scrollable profiles — filters: `scope=city\|india`, `city=`, `vibes=a,b` |
 | POST | `/api/request` | send a friend request (mutual = instant frens) |
 | GET | `/api/requests` | your inbox (incoming + sent) |
