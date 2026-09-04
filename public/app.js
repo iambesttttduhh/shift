@@ -199,7 +199,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.9 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v1.10 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -261,7 +261,7 @@ function renderAuthCard() {
         <div class="field"><label>username <span class="req">*</span></label><input name="username" maxlength="16" placeholder="cool_user_9" required></div>
         <div class="field"><label>age <span class="req">*</span></label><input name="age" type="number" min="13" max="19" placeholder="13-19" required></div>
       </div>
-      <div class="field"><label>email <span class="req">*</span> <span style="text-transform:none;letter-spacing:0">(gmail only!)</span></label><input name="email" type="email" placeholder="urname@gmail.com" required></div>
+      <div class="field"><label>email <span class="req">*</span> <span style="text-transform:none;letter-spacing:0">(any real email — we send a code 📬)</span></label><input name="email" type="email" placeholder="u@email.com" required></div>
       <div class="frow">
         <div class="field"><label>password <span class="req">*</span></label><input name="password" type="password" minlength="6" placeholder="min 6 chars" required></div>
         <div class="field"><label>ur city <span class="req">*</span></label><input name="city" list="city-list" placeholder="Mumbai" required><datalist id="city-list">${cities}</datalist></div>
@@ -1258,7 +1258,7 @@ function editUserModal(u) {
           <div class="field"><label>name</label><input name="name" maxlength="24" value="${esc(u.name)}"></div>
           <div class="field"><label>username</label><input name="username" maxlength="16" value="${esc(u.username)}"></div>
         </div>
-        <div class="field"><label>email (gmail only)</label><input name="email" type="email" value="${esc(u.email)}"></div>
+        <div class="field"><label>email</label><input name="email" type="email" value="${esc(u.email)}"></div>
         <div class="frow">
           <div class="field"><label>new password <span style="text-transform:none;letter-spacing:0">(blank = keep)</span></label><input name="password" type="text" placeholder="min 6 chars"></div>
           <div class="field"><label>city</label><input name="city" list="eu-cities" value="${esc(u.city)}"><datalist id="eu-cities">${cities}</datalist></div>

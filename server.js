@@ -113,8 +113,17 @@ function titleCaseName(s) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._%+-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/;
 const GMAIL_RE = /^[a-z0-9](?:[a-z0-9._%+-]*[a-z0-9])?@gmail\.com$/i;
+/* one-mailbox-per-account: strip +tags, ignore gmail dots, lowercase */
+function normalizeEmailKey(email) {
+  const e = String(email || '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  if (at < 1) return e;
+  const local = e.slice(0, at).split('+')[0];
+  const dom = e.slice(at + 1);
+  return (dom === 'gmail.com' ? local.replace(/\./g, '') : local) + '@' + dom;
+}
 const PHOTO_MAX = 300000; // ~300KB dataURL cap (client resizes before upload)
 
 function validPhoto(p) {
@@ -318,6 +327,7 @@ function loadDb() {
   for (const u of db.users) {
     if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
     if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
+    if (!u.emailKey) u.emailKey = normalizeEmailKey(u.email); // v1.10: mailbox key
   }
   if (!Array.isArray(db.requests)) db.requests = []; // v1.8: friend requests
   if (migrated) { saveDbNow(); console.log('[frfr] migration: verified', migrated, 'existing accounts'); }
@@ -452,7 +462,8 @@ function seedBots() {
 function findUser(id) { return db.users.find(u => u.id === id); }
 function findUserByUsernameOrEmail(x) {
   const t = String(x || '').trim().toLowerCase();
-  return db.users.find(u => u.username.toLowerCase() === t || u.email.toLowerCase() === t);
+  const k = normalizeEmailKey(t);
+  return db.users.find(u => u.username.toLowerCase() === t || u.email.toLowerCase() === t || (u.emailKey && u.emailKey === k));
 }
 
 function publicUser(u, { withEmail = false, noPhoto = false } = {}) {
@@ -530,13 +541,14 @@ addRoute('POST', '/api/signup', {}, async (req, res, params, body) => {
 
   if (name.length < 2 || name.length > 24) return bad(res, 'name should be 2-24 chars');
   if (!USERNAME_RE.test(username)) return bad(res, 'username: 3-16 chars, letters/numbers/_ only');
-  if (!GMAIL_RE.test(email)) return bad(res, 'gmail only bestie 📧 sign up with ur @gmail.com');
+  if (!EMAIL_RE.test(email)) return bad(res, 'thats not a real email bestie 📧 check it and try again');
   if (validPhoto(body.photo) === false && body.photo !== undefined && body.photo !== null) return bad(res, 'pic too big or not an image 💀');
   if (password.length < 6) return bad(res, 'password needs at least 6 chars');
   if (!Number.isInteger(age) || age < 13 || age > 19) return bad(res, 'frfr is for teens 13-19 only');
   if (!city) return bad(res, 'enter ur city so we can find ur frens');
+  const emailKey = normalizeEmailKey(email);
   if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) return bad(res, 'username already taken 😬');
-  if (db.users.some(u => u.email.toLowerCase() === email)) return bad(res, 'email already has an account — try logging in');
+  if (db.users.some(u => u.emailKey === emailKey || u.email.toLowerCase() === email)) return bad(res, 'email already has an account — try logging in');
 
   const { salt, hash } = hashPassword(password);
   const avatar = {
@@ -551,6 +563,7 @@ addRoute('POST', '/api/signup', {}, async (req, res, params, body) => {
   };
   if (body.photo) { user.photo = body.photo; user.photos = [body.photo]; }
   user.emailVerified = false;
+  user.emailKey = emailKey;
   db.users.push(user);
   saveDb();
   const v = await issueVerification(user);
@@ -968,9 +981,10 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
   }
   if (body.email !== undefined) {
     const em = String(body.email || '').trim().toLowerCase();
-    if (!GMAIL_RE.test(em)) return bad(res, 'gmail only bestie 📧');
-    if (db.users.some(u => u.id !== t.id && u.email.toLowerCase() === em)) return bad(res, 'email already on another account');
-    t.email = em;
+    if (!EMAIL_RE.test(em)) return bad(res, 'thats not a real email bestie 📧');
+    const ek = normalizeEmailKey(em);
+    if (db.users.some(u => u.id !== t.id && (u.emailKey === ek || u.email.toLowerCase() === em))) return bad(res, 'email already on another account');
+    t.email = em; t.emailKey = ek;
   }
   if (body.password) {
     if (String(body.password).length < 6) return bad(res, 'password needs at least 6 chars');
@@ -1102,7 +1116,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.9  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v1.9)');
+  console.log('  ✦✦✦  frfr build v1.10  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v1.10)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

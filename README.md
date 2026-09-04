@@ -6,7 +6,7 @@ Create an account with your email, enter your city, and **frfr** matchmakes you 
 
 ## ✨ Features
 
-- **Email signup** (name, username, email, password, age 13–19, city, avatar, bio, vibes) + **login with username or email & password**
+- **Email signup** (any provider — one account per mailbox, +tag/dot tricks blocked) + **login with username or email & password**
 - **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
 - **Reels-style scroll feed** — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
 - **Friend requests inbox** 💌 — accept ✓ / reject ✕ from the nav (badge count); liking back = instant frens; demo frens sometimes accept instantly
