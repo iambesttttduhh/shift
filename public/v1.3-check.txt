@@ -1,2 +1,2 @@
-✦✦✦ v1.4 CONFIRMED — the NEWEST server is answering on port 3000 ✦✦✦
-All good. Now go to:  localhost:3000/?v=14
+✦✦✦ v1.5 CONFIRMED — newest server on port 3000 ✦✦✦
+Now open:  localhost:3000/?v=15   (fits normal laptop screens at 100% zoom)
