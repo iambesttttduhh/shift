@@ -1,4 +1,2 @@
-✦✦✦ v1.3 CONFIRMED — the NEWEST server is answering on port 3000 ✦✦✦
-If you can read this file, your app folder is up to date.
-The "old website" you're seeing = browser cache → go back to localhost:3000
-and press Ctrl + F5. Or open:  localhost:3000/?v=13
+✦✦✦ v1.4 CONFIRMED — the NEWEST server is answering on port 3000 ✦✦✦
+All good. Now go to:  localhost:3000/?v=14

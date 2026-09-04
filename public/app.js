@@ -132,13 +132,13 @@ function renderLanding() {
           <span class="hchip">📍 ${st.cities}+ cities</span>
           <span class="hchip">🛡️ teens only (13-19)</span>
         </div>
-        <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.3 ✦ if u can read this, u got the newest build</div>
       </div>
       <div class="hero-side">
         <div class="auth-card" id="auth-card"></div>
       </div>
     </div>
+        <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
+        <div class="ver-tag">v1.4 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
