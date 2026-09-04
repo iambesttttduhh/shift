@@ -2,16 +2,17 @@
 
 A Gen-Z style social web app for teens (13–19) across **India** to socialize and make new friends in their own city.
 
-Create an account with your email, enter your city, and **frfr** matchmakes you with people from that exact city. Swipe **right** to like (🔊 *happy happy happy!*) or **left** to pass (🔊 *ohhh nooooo*). Mutual right swipes = **IT'S A MATCH** → chat opens up. No cap.
+Create an account with your email, enter your city, and **frfr** matchmakes you with people from that exact city. **Double-tap** a profile to send a friend request (🔊 happy kitty + 💌 heart burst) — they accept or reject from their inbox. Mutual likes = instant frens → chat. No cap.
 
 ## ✨ Features
 
 - **Email signup** (name, username, email, password, age 13–19, city, avatar, bio, vibes) + **login with username or email & password**
-- **City-based matchmaking** — the swipe deck only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
-- **Tinder-style swipe cards** — drag with mouse/touch, buttons, or arrow keys, with LIKE / NOPE stamps
+- **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
+- **Reels-style scroll feed** — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
+- **Friend requests inbox** 💌 — accept ✓ / reject ✕ from the nav (badge count); liking back = instant frens; demo frens sometimes accept instantly
 - **Cat meme sound effects** — right swipe plays a happy kitty 🐱 (purrs included), left swipe plays a sad kiddy cat (toggle 🔊 in the header)
-- **Matches + real-time-ish chat** (polling) with your mutual likes
-- **"Liked u already" flag** — people who liked you surface first in the deck 😏
+- **Frens + real-time-ish chat** (polling)
+- **"wants to be ur fren" flag** — people who requested you float to the top of the feed 😏
 - **Profile editing** — city, bio, avatar (emoji + gradient), vibes (up to 5)
 - **Admin panel** 🛡️ — live stats (users, cities, swipes, matches, messages), city leaderboard, full user table with search + delete
 - **Seeded demo frens** in 40 Indian cities so the deck is never empty (demo frens sometimes like you back so you can feel the match magic)
@@ -60,9 +61,11 @@ data/db.json         # runtime data (gitignored, auto-created)
 |---|---|---|
 | POST | `/api/signup` | create account |
 | POST | `/api/login` | login (username **or** email) |
-| GET | `/api/deck` | profiles from your city |
-| POST | `/api/swipe` | `{targetId, dir: right\|left}` → may return a match |
-| GET | `/api/matches` | your mutual likes |
+| GET | `/api/feed` | scrollable profiles from your city (paginated) |
+| POST | `/api/request` | send a friend request (mutual = instant frens) |
+| GET | `/api/requests` | your inbox (incoming + sent) |
+| POST | `/api/requests/:id/accept` or `/reject` | decide a request |
+| GET | `/api/matches` | your frens |
 | GET/POST | `/api/matches/:id/messages` | chat |
 | GET | `/api/admin/stats` | admin dashboard data |
 | DELETE | `/api/admin/users/:id` | remove a user (admin) |
