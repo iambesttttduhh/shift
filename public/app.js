@@ -42,7 +42,8 @@ const state = {
   view: 'deck',          // deck | matches | profile | admin
   activeMatch: null,     // match object when in chat
   chatTimer: null,
-  muted: localStorage.getItem('frfr_muted') === '1'
+  muted: localStorage.getItem('frfr_muted') === '1',
+  pending: null   // { token, email, name, mailMode, devCode } during email verification
 };
 
 const sfxHappy = $('#sfx-happy');
@@ -191,7 +192,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.6 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v1.7 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -226,6 +227,11 @@ function renderAuthCard() {
       const fd = new FormData(form);
       try {
         const r = await api('/api/login', { method: 'POST', body: { identifier: fd.get('identifier'), password: fd.get('password') } });
+        if (r.needVerification) {
+          state.pending = { token: r.verifyToken, email: r.email, name: r.name, mailMode: r.mailMode, devCode: r.devCode };
+          renderVerifyScreen();
+          return;
+        }
         state.token = r.token; state.user = r.user;
         localStorage.setItem('frfr_token', r.token);
         toast('welcome back, ' + r.user.name.split(' ')[0] + ' 🫶', 'good');
@@ -295,6 +301,11 @@ function renderAuthCard() {
       };
       try {
         const r = await api('/api/signup', { method: 'POST', body });
+        if (r.needVerification) {
+          state.pending = { token: r.verifyToken, email: r.email, name: r.name, mailMode: r.mailMode, devCode: r.devCode };
+          renderVerifyScreen();
+          return;
+        }
         state.token = r.token; state.user = r.user;
         localStorage.setItem('frfr_token', r.token);
         toast('account made! welcome fr 🫶', 'good');
@@ -302,6 +313,91 @@ function renderAuthCard() {
       } catch (ex) { err.textContent = ex.message; }
     };
   }
+}
+
+/* ============================================================
+   EMAIL VERIFICATION SCREEN
+   ============================================================ */
+function renderVerifyScreen() {
+  stopTimers();
+  const p = state.pending;
+  if (!p) return renderLanding();
+  app.innerHTML = `
+  <div class="landing">
+    <div class="landing-inner" style="max-width:440px">
+      <div class="auth-card" style="text-align:center">
+        <div style="font-size:52px;margin-bottom:6px">📬</div>
+        <h2 class="auth-title">check ur email!</h2>
+        <p class="auth-sub">we sent a <b>4-digit code</b> to<br><b style="color:var(--lime)">${esc(p.email)}</b><br>enter it below to verify <b>${esc(p.name)}</b> 🔐</p>
+        ${p.devCode ? `<div class="demo-code">🧪 demo mode (no mail key set)<br>ur code is: <b id="demo-code-num">${esc(p.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">set RESEND_API_KEY in server env to send real emails</span></div>` : ''}
+        <form id="verify-form" autocomplete="off">
+          <input class="vcode" id="vcode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autofocus>
+          <div class="err-line" id="v-err"></div>
+          <button class="btn btn-primary btn-block" type="submit" id="v-btn">verify me ✅</button>
+        </form>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn btn-ghost btn-sm" style="flex:1" id="v-resend" disabled>resend code (45s)</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1" id="v-back">↩ different email</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  const input = $('#vcode');
+  input.addEventListener('input', () => { input.value = input.value.replace(/[^0-9]/g, '').slice(0, 4); });
+  setTimeout(() => input.focus(), 50);
+
+  let left = 45;
+  const rbtn = $('#v-resend');
+  const tick = setInterval(() => {
+    left--;
+    if (left <= 0) { clearInterval(tick); rbtn.disabled = false; rbtn.textContent = '📨 resend code'; }
+    else rbtn.textContent = `resend code (${left}s)`;
+  }, 1000);
+
+  $('#v-back').onclick = () => { clearInterval(tick); state.pending = null; renderLanding(); };
+
+  rbtn.onclick = async () => {
+    if (rbtn.disabled) return;
+    rbtn.disabled = true; left = 45;
+    const t = setInterval(() => {
+      left--;
+      if (left <= 0) { clearInterval(t); rbtn.disabled = false; rbtn.textContent = '📨 resend code'; }
+      else rbtn.textContent = `resend code (${left}s)`;
+    }, 1000);
+    try {
+      const r = await api('/api/verify/resend', { method: 'POST', body: { token: p.token } });
+      p.mailMode = r.mailMode;
+      if (r.devCode) {
+        p.devCode = r.devCode;
+        const banner = $('.demo-code');
+        if (banner) $('#demo-code-num', banner) ? banner.innerHTML = `🧪 demo mode (no mail key set)<br>ur code is: <b id="demo-code-num">${esc(r.devCode)}</b><br><span style="font-size:10.5px;opacity:.7">set RESEND_API_KEY in server env to send real emails</span>` : null;
+      }
+      $('#v-err').textContent = '';
+      toast('new code sent 📨', 'good');
+    } catch (ex) {
+      $('#v-err').textContent = ex.message;
+      clearInterval(t); rbtn.disabled = false; rbtn.textContent = '📨 resend code';
+    }
+  };
+
+  $('#verify-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const code = input.value.trim();
+    if (code.length !== 4) { $('#v-err').textContent = 'enter all 4 digits bestie'; return; }
+    try {
+      const r = await api('/api/verify', { method: 'POST', body: { token: p.token, code } });
+      state.pending = null;
+      state.token = r.token; state.user = r.user;
+      localStorage.setItem('frfr_token', r.token);
+      confetti(50);
+      toast('email verified ✅ welcome fr 🫶', 'good');
+      enterApp();
+    } catch (ex) {
+      $('#v-err').textContent = ex.message;
+      input.value = ''; input.focus();
+    }
+  };
 }
 
 /* ============================================================

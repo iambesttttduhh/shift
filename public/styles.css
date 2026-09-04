@@ -563,3 +563,19 @@ code.kbd { background: rgba(255,255,255,.08); padding: 2px 7px; border-radius: 6
 .edit-btn:hover { background: rgba(94,234,212,.15); }
 .admin-edit { max-height: 88vh; overflow-y: auto; text-align: left; }
 .admin-edit .match-sub { margin-bottom: 16px; }
+
+/* ---------------------------------------------------- v1.7: email verify */
+.vcode {
+  width: 100%; text-align: center;
+  font-family: var(--font-display); font-weight: 900; font-size: 34px;
+  letter-spacing: .55em; text-indent: .55em;
+  background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 14px 0 14px .55em; outline: none; color: var(--lime);
+  transition: border .15s, box-shadow .15s;
+}
+.vcode:focus { border-color: var(--lime); box-shadow: 0 0 0 3px rgba(204,255,51,.14); }
+.demo-code {
+  margin: 12px 0; padding: 11px; border-radius: var(--r-sm);
+  background: rgba(167,139,250,.12); border: 1px dashed rgba(167,139,250,.5);
+  color: var(--purple); font-size: 13px; font-weight: 700; line-height: 1.6;
+}

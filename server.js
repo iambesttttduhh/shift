@@ -118,6 +118,77 @@ const PHOTO_MAX = 300000; // ~300KB dataURL cap (client resizes before upload)
 function validPhoto(p) {
   return typeof p === 'string' && p.startsWith('data:image/') && p.length <= PHOTO_MAX;
 }
+
+/* ---------------- email verification (4-digit code) ---------------- */
+const VERIF_EXPIRE = 10 * 60 * 1000;   // code valid 10 min
+const VERIF_COOLDOWN = 45 * 1000;      // resend cooldown
+const VERIF_MAX_ATTEMPTS = 6;
+const pendingVerifs = new Map();       // pendingToken -> { userId, at } (in-memory)
+
+function hashCode(uidv, code) {
+  return crypto.createHash('sha256').update(uidv + ':' + code).digest('hex');
+}
+function makeCode() { return String(crypto.randomInt(1000, 10000)); }
+
+async function sendVerificationEmail(email, name, code) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.log(`[frfr] DEMO MAIL → ${email} code: ${code} (set RESEND_API_KEY to send real emails)`);
+    return 'demo';
+  }
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'frfr <onboarding@resend.dev>',
+        to: [email],
+        subject: `${code} is ur frfr verification code`,
+        html: `<div style="font-family:Arial,sans-serif;background:#0a0a0f;color:#f4f4ef;padding:32px;border-radius:16px">
+          <h2 style="color:#ccff33">hey ${name} 👋</h2>
+          <p>ur frfr verification code is:</p>
+          <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#ccff33">${code}</p>
+          <p style="color:#9a9aae">expires in 10 minutes. dont share it with anyone fr 🤫</p>
+        </div>`
+      })
+    });
+    if (!r.ok) { console.error('[frfr] resend failed:', r.status, await r.text().catch(() => '')); return 'demo'; }
+    return 'sent';
+  } catch (e) { console.error('[frfr] resend error:', e.message); return 'demo'; }
+}
+
+function issueVerification(user) {
+  const code = makeCode();
+  db.verifications = db.verifications || {};
+  db.verifications[user.id] = {
+    codeHash: hashCode(user.id, code),
+    expires: Date.now() + VERIF_EXPIRE,
+    attempts: 0,
+    lastSent: Date.now()
+  };
+  saveDb();
+  return sendVerificationEmail(user.email, user.name, code).then(mode => {
+    const pending = crypto.randomBytes(24).toString('hex');
+    pendingVerifs.set(pending, { userId: user.id, at: Date.now() });
+    return { mode, pending, code };
+  });
+}
+
+function checkVerification(user, code) {
+  const v = (db.verifications || {})[user.id];
+  if (!v) return { ok: false, msg: 'no code pending — hit resend 📬' };
+  if (Date.now() > v.expires) return { ok: false, msg: 'code expired bestie — resend it 📬' };
+  if (v.attempts >= VERIF_MAX_ATTEMPTS) return { ok: false, msg: 'too many tries 💀 hit resend' };
+  v.attempts++;
+  if (String(code).trim() !== '' && hashCode(user.id, String(code).trim()) === v.codeHash) {
+    user.emailVerified = true;
+    delete db.verifications[user.id];
+    saveDb();
+    return { ok: true };
+  }
+  saveDb();
+  return { ok: false, msg: 'wrong code 🙅 check again' };
+}
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 /* ---------------------------------------------------------------- database */
@@ -139,6 +210,12 @@ function loadDb() {
     saveDbNow();
     console.log('[frfr] fresh db seeded:', db.users.length, 'users');
   }
+  // migration: accounts from before v1.7 are grandfathered as verified
+  let migrated = 0;
+  for (const u of db.users) {
+    if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
+  }
+  if (migrated) { saveDbNow(); console.log('[frfr] migration: verified', migrated, 'existing accounts'); }
 }
 
 function saveDbNow() {
@@ -165,7 +242,7 @@ const uid = (p) => `${p}_${Date.now().toString(36)}${(idc++).toString(36)}${cryp
 function seedAdmin() {
   const { salt, hash } = hashPassword('admin123');
   db.users.push({
-    id: 'user_admin', role: 'admin',
+    id: 'user_admin', role: 'admin', emailVerified: true,
     name: 'frfr Admin', username: 'admin', email: 'admin@frfr.app',
     passSalt: salt, passHash: hash,
     age: 19, city: 'New Delhi', gender: 'prefer not to say',
@@ -258,7 +335,7 @@ function seedBots() {
         bio: pick(BOT_BIOS),
         vibes,
         avatar: { emoji: pick(EMOJIS), grad: randInt(0, GRADS.length - 1) },
-        isBot: true,
+        isBot: true, emailVerified: true,
         createdAt: Date.now() - randInt(1, 60) * 86400000
       });
     }
@@ -331,7 +408,7 @@ addRoute('GET', '/api/meta', {}, (req, res) => {
   });
 });
 
-addRoute('POST', '/api/signup', {}, (req, res, params, body) => {
+addRoute('POST', '/api/signup', {}, async (req, res, params, body) => {
   const name = titleCaseName(String(body.name || ''));
   const username = String(body.username || '').trim();
   const email = String(body.email || '').trim().toLowerCase();
@@ -365,17 +442,38 @@ addRoute('POST', '/api/signup', {}, (req, res, params, body) => {
     isBot: false, createdAt: Date.now()
   };
   if (body.photo) user.photo = body.photo;
+  user.emailVerified = false;
   db.users.push(user);
-  const token = crypto.randomBytes(24).toString('hex');
-  db.sessions[token] = user.id;
   saveDb();
-  sendJson(res, 200, { token, user: publicUser(user, { withEmail: true }) });
+  const v = await issueVerification(user);
+  sendJson(res, 200, {
+    needVerification: true, verifyToken: v.pending,
+    email: user.email, name: user.name, mailMode: v.mode,
+    devCode: v.mode === 'demo' ? v.code : undefined
+  });
 });
 
-addRoute('POST', '/api/login', {}, (req, res, params, body) => {
+addRoute('POST', '/api/login', {}, async (req, res, params, body) => {
   const user = findUserByUsernameOrEmail(body.identifier);
   if (!user || !verifyPassword(body.password, user.passSalt, user.passHash)) {
     return bad(res, 'wrong username or password 🙅', 401);
+  }
+  if (!user.emailVerified && user.role !== 'admin') {
+    const since = (db.verifications || {})[user.id] ? (db.verifications[user.id].lastSent || 0) : 0;
+    if (Date.now() - since > VERIF_COOLDOWN || !db.verifications[user.id]) {
+      const v = await issueVerification(user);
+      return sendJson(res, 200, {
+        needVerification: true, verifyToken: v.pending,
+        email: user.email, name: user.name, mailMode: v.mode,
+        devCode: v.mode === 'demo' ? v.code : undefined
+      });
+    }
+    const pending = crypto.randomBytes(24).toString('hex');
+    pendingVerifs.set(pending, { userId: user.id, at: Date.now() });
+    return sendJson(res, 200, {
+      needVerification: true, verifyToken: pending,
+      email: user.email, name: user.name, mailMode: 'demo', cooldown: true
+    });
   }
   const token = crypto.randomBytes(24).toString('hex');
   db.sessions[token] = user.id;
@@ -387,6 +485,33 @@ addRoute('POST', '/api/logout', { auth: true }, (req, res, params, body, user, e
   delete db.sessions[extra.token];
   saveDb();
   sendJson(res, 200, { ok: true });
+});
+
+addRoute('POST', '/api/verify', {}, (req, res, params, body) => {
+  const p = pendingVerifs.get(body.token);
+  if (!p) return bad(res, 'verification session expired — log in again 🙅', 404);
+  const user = findUser(p.userId);
+  if (!user) return bad(res, 'account gone 💀', 404);
+  const r = checkVerification(user, body.code);
+  if (!r.ok) return bad(res, r.msg);
+  pendingVerifs.delete(body.token);
+  const token = crypto.randomBytes(24).toString('hex');
+  db.sessions[token] = user.id;
+  saveDb();
+  sendJson(res, 200, { token, user: publicUser(user, { withEmail: true }) });
+});
+
+addRoute('POST', '/api/verify/resend', {}, async (req, res, params, body) => {
+  const p = pendingVerifs.get(body.token);
+  if (!p) return bad(res, 'verification session expired — log in again 🙅', 404);
+  const user = findUser(p.userId);
+  if (!user) return bad(res, 'account gone 💀', 404);
+  const v = (db.verifications || {})[user.id];
+  if (v && Date.now() - (v.lastSent || 0) < VERIF_COOLDOWN) {
+    return bad(res, 'slow down — resend unlocked in ' + Math.ceil((VERIF_COOLDOWN - (Date.now() - v.lastSent)) / 1000) + 's ⏳');
+  }
+  const nv = await issueVerification(user);
+  sendJson(res, 200, { ok: true, mailMode: nv.mode, devCode: nv.mode === 'demo' ? nv.code : undefined });
 });
 
 /* --------------------------------------------------------------- api: user */
@@ -733,9 +858,12 @@ const server = http.createServer(async (req, res) => {
       if (r.opts.auth) {
         user = authUser(req);
         if (!user) return bad(res, 'login first bestie 🙅', 401);
+        if (!user.emailVerified && user.role !== 'admin') {
+          return sendJson(res, 403, { error: 'verify ur email first 📬 check ur inbox', code: 'UNVERIFIED' });
+        }
       }
       try {
-        return r.handler(req, res, params, body, user, { token });
+        return await r.handler(req, res, params, body, user, { token });
       } catch (e) {
         console.error('[frfr] handler error', pathname, e);
         return bad(res, 'server hiccup 💀', 500);
@@ -751,7 +879,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.6  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v1.6)');
+  console.log('  ✦✦✦  frfr build v1.7  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v1.7)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
