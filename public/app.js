@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.7';
+const APP_VER = '3.8';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
@@ -270,7 +270,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.7 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.8 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -610,7 +610,7 @@ function renderShell() {
 function renderNav() {
   const u = state.user;
   const tabs = [
-    { id: 'matches', icon: '💬', label: 'chats' },
+    { id: 'matches', icon: '💬', label: 'chats', chatdot: true },
     { id: 'requests', icon: '💌', label: 'requests', dot: true },
     { id: 'live', icon: '⚡', label: 'LIVE', big: true, live: true },
     { id: 'feed', icon: '⚡', label: 'for u' },
@@ -619,7 +619,7 @@ function renderNav() {
   $('#nav').innerHTML = tabs.map(t =>
     `<button class="nav-btn ${t.big ? 'big live ' : ''}${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
        ${t.big ? `<span class="live-dot"></span><span class="ni">${t.icon}</span><span class="big-label">LIVE</span>` : `<span class="ni">${t.icon}</span>${t.label}`}
-       ${t.dot ? '<span class="nav-dot" id="nav-req-dot" style="display:none"></span>' : ''}
+       ${t.dot ? '<span class="nav-dot" id="nav-req-dot" style="display:none"></span>' : ''}${t.chatdot ? '<span class="nav-chat-dot" id="nav-chat-dot" style="display:none"></span>' : ''}
      </button>`).join('');
   $$('#nav .nav-btn').forEach(b => b.onclick = () => {
     if (b.dataset.view === state.view && !state.activeMatch) return;
@@ -1138,6 +1138,8 @@ async function renderMatches() {
           </div>
           <span class="match-row-time">${mt.lastMessage ? timeAgo(mt.lastMessage.at) : timeAgo(mt.at)}${mt.unread ? '<span class="unread-dot" title="new message"></span>' : ''}</span>
         </button>`).join('')}`;
+    const cd = $('#nav-chat-dot');
+    if (cd) cd.style.display = r.matches.some(m => m.unread) ? 'block' : 'none';
     $$('.match-row', root).forEach(b => b.onclick = () => {
       const mt = r.matches.find(x => x.id === b.dataset.id);
       openChat(mt.id, mt.user);

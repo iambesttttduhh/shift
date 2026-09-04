@@ -1300,6 +1300,13 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
 .hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
 
+/* v3.8: chats tab unread dot */
+.nav-chat-dot {
+  position: absolute; top: 8px; right: 50%; margin-right: -22px;
+  width: 8px; height: 8px; border-radius: 50%; background: #3ddc63;
+  box-shadow: 0 0 9px rgba(61,220,99,.9);
+}
+
 /* v3.7: unread badges */
 .unread-dot {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
