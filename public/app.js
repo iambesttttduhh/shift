@@ -94,11 +94,17 @@ async function api(path, opts = {}) {
   const headers = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
-  const res = await fetch(path, {
-    method: opts.method || 'GET',
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      method: opts.method || 'GET',
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: AbortSignal.timeout(12000)
+    });
+  } catch (netErr) {
+    throw new Error('cant reach the server — is it running? 🖥️');
+  }
   let data = null;
   try { data = await res.json(); } catch {}
   if (!res.ok) {
@@ -108,7 +114,9 @@ async function api(path, opts = {}) {
       state.token = null; state.user = null;
       renderLanding();
     }
-    const e = new Error((data && data.error) || 'something broke 💀');
+    let msg = (data && data.error) || 'something broke 💀';
+    if (res.status === 404 && String(path).startsWith('/api/')) msg = 'server is older than the app — restart with the new server.js 🖥️';
+    const e = new Error(msg);
     e.status = res.status;
     throw e;
   }
@@ -219,7 +227,7 @@ function renderLanding() {
     <div class="landing-inner">
       <div class="hero">
         <div class="logo-big">frfr<span class="dot">.</span></div>
-        <p class="tagline">make <b>frens</b> in ur city. swipe right on the vibes, <b>match</b>, and start yapping. <b>no cap.</b> 📍India</p>
+        <p class="tagline">make <b>frens</b> in ur city. scroll the <b>spark</b> feed, double-tap ur favs, and start yapping. <b>no cap.</b> 📍India</p>
         <div class="hero-chips">
           <span class="hchip hot">🔥 ${st.frens}+ frens vibing</span>
           <span class="hchip">📍 ${st.cities}+ cities</span>
@@ -230,8 +238,8 @@ function renderLanding() {
         <div class="auth-card" id="auth-card"></div>
       </div>
     </div>
-        <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.7 ✦ if u can read this, u got the newest build</div>
+        <div class="marquee"><span>double-tap to match ★ spark ur feed ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;double-tap to match ★ spark ur feed ★ frens fr ★ no cap ★ vibe check passed ★ lowkey iconic ★ bestie behaviour ★ make frens in ur city ★&nbsp;</span></div>
+        <div class="ver-tag">v2.8 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -575,7 +583,7 @@ function renderNav() {
     { id: 'matches', icon: '💬', label: 'chats' },
     { id: 'requests', icon: '💌', label: 'requests', dot: true },
     { id: 'live', icon: '⚡', label: 'LIVE', big: true, live: true },
-    { id: 'feed', icon: '🔥', label: 'swipe' },
+    { id: 'feed', icon: '✨', label: 'spark' },
     ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : [{ id: 'profile', icon: '😎', label: 'me' }])
   ];
   $('#nav').innerHTML = tabs.map(t =>
@@ -675,7 +683,7 @@ function initFeed(keepScroll) {
       </div>
       <div class="feed-filterbar" id="feed-filterbar"></div>
       <div class="feed" id="feed"><div class="spin"></div></div>
-      <div class="swipe-tip">double-tap a profile = friend request 💌 · scroll past the ones u dont vibe with</div>
+      <div class="swipe-tip">✨ spark feed — double-tap a profile to send a fren request 💌 · scroll past the ones u dont vibe with</div>
     </div>`;
   $('#feed-refresh').onclick = () => initFeed();
   renderFeedFilterbar();
@@ -812,12 +820,13 @@ async function loadFeedPage() {
     if (empty) empty.remove();
     const spinner = $('.spin', feedEl);
     if (spinner) spinner.remove();
+    $('#swipe-actions') && ($('#swipe-actions').style.visibility = 'visible');
     if (!f.items.length) {
       feedEl.innerHTML = `
         <div class="feed-empty">
           <div class="big">🫶</div>
-          <h3>no more profiles rn</h3>
-          <p>u seen everyone matching these filters! try ✨ fewer interests, 🇮🇳 whole india, or check back later 👀</p>
+          <h3>u sparked everyone rn</h3>
+          <p>no more profiles matching these filters! try ✨ fewer interests, 🇮🇳 whole india, or check back later 👀</p>
           <button class="btn btn-primary" id="feed-refill">↺ check again</button>
         </div>`;
       const b = $('#feed-refill');
@@ -830,9 +839,18 @@ async function loadFeedPage() {
     wireFeedCards(r.items);
   } catch (e) {
     const feedEl = $('#feed');
-    if (feedEl && !f.items.length) feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t load</h3><p>' + esc(e.message) + '</p></div>';
+    if (feedEl) {
+      const sp = $('.spin', feedEl);
+      if (sp && !f.items.length) sp.remove();
+      if (!f.items.length) {
+        feedEl.innerHTML = '<div class="feed-empty"><div class="big">💀</div><h3>couldn&apos;t load the spark feed</h3><p>' + esc(e.message) + '</p><button class="btn btn-primary" id="feed-retry">↺ retry</button></div>';
+        const rb = $('#feed-retry');
+        if (rb) rb.onclick = () => initFeed();
+      }
+    }
+  } finally {
+    f.loading = false;
   }
-  f.loading = false;
 }
 
 function feedCardHtml(u, idx = 0) {
@@ -1019,7 +1037,7 @@ async function renderMatches() {
           <div class="big">🥺</div>
           <h3>no frens yet</h3>
           <p>double-tap someone from ${esc(state.user.city)} on the feed — or accept a request 💌</p>
-          <button class="btn btn-primary" id="go-swipe">🔥 open feed</button>
+          <button class="btn btn-primary" id="go-swipe">✨ open spark</button>
         </div>`;
       $('#go-swipe').onclick = () => setView('feed');
       return;
@@ -1403,8 +1421,13 @@ async function startQuickMatch(intent, onDone) {
           </div>
         </div>`;
       $('#lm-chat', stage).onclick = async () => {
+        let mid = r.match && r.match.id;
+        if (!mid) {
+          try { const mm = await api('/api/matches'); if (mm.matches[0]) mid = mm.matches[0].id; } catch (x) {}
+        }
+        if (!mid) return toast('match saved! find it in chats 💬', 'good');
         state.view = 'matches'; renderNav();
-        await openChat(r.match.id, r.partner);
+        await openChat(mid, r.partner);
       };
       $('#lm-again', stage).onclick = () => startQuickMatch(intent, onDone);
     } else {
@@ -1440,7 +1463,13 @@ async function startQuickMatch(intent, onDone) {
                   <button class="btn btn-ghost btn-block" id="lm-again">⚡ match me again</button>
                 </div>
               </div>`;
-            $('#lm-chat', stage).onclick = async () => { state.view = 'matches'; renderNav(); await openChat(rr.match.id, rr.partner); };
+            $('#lm-chat', stage).onclick = async () => {
+              let mid = rr.match && rr.match.id;
+              if (!mid) { try { const mm = await api('/api/matches'); if (mm.matches[0]) mid = mm.matches[0].id; } catch (x) {} }
+              if (!mid) return toast('match saved! find it in chats 💬', 'good');
+              state.view = 'matches'; renderNav();
+              await openChat(mid, rr.partner);
+            };
             $('#lm-again', stage).onclick = () => startQuickMatch(intent, onDone);
           } else {
             const w = $('#wait-n'); if (w) w.textContent = rr.waiting || 1;

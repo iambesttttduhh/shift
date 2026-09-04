@@ -989,7 +989,7 @@ addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, bod
   const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
   const pool = db.users.filter(u => u.isBot && u.role !== 'admin' && !frenIds.has(u.id) &&
     (intent === 'any' || (intent === 'girls' && u.gender === 'girl') || (intent === 'boys' && u.gender === 'boy')));
-  if (pool.length && Math.random() < 0.55) {
+  if (pool.length && Math.random() < 0.8) {
     // prefer same city / shared vibes
     pool.sort((a, b) => {
       const ca = a.city.toLowerCase() === user.city.toLowerCase() ? 0 : 1;
@@ -1009,8 +1009,13 @@ addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, bod
     db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id);
     bumpStreak(user);
     const up = addXp(user, 20, 'quick match');
+    const match = db.matches.find(m => (m.a === user.id && m.b === partner.id) || (m.b === user.id && m.a === partner.id));
     saveDb();
-    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner), xpGain: 20, leveledUp: up ? up.leveledUp : null, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1) });
+    return sendJson(res, 200, {
+      status: 'matched', partner: publicUser(partner),
+      match: { id: match ? match.id : null, user: publicUser(partner) },
+      xpGain: 20, leveledUp: up ? up.leveledUp : null, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1)
+    });
   }
   // check real humans waiting
   const match = findLobbyMatch(user, intent);
@@ -1021,7 +1026,8 @@ addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, bod
       db.matches.push({ id: uid('m'), pair: pairKey(user.id, partner.id), a: user.id, b: partner.id, at: Date.now() });
       saveDb();
     }
-    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner) });
+    const match = db.matches.find(m => (m.a === user.id && m.b === partner.id) || (m.b === user.id && m.a === partner.id));
+    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner), match: { id: match ? match.id : null, user: publicUser(partner) } });
   }
   const waitingSameIntent = (db.lobbies || []).filter(l => intentCompat(l.intent, intent)).length;
   sendJson(res, 200, { status: 'waiting', waiting: waitingSameIntent + 1 });
@@ -1416,7 +1422,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.7  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.7)');
+  console.log('  ✦✦✦  frfr build v2.8  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.8)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

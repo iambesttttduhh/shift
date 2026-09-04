@@ -13,8 +13,8 @@ Create an account with your email, enter your city, and **frfr** matchmakes you 
 - **Engagement layer** — 🔥 daily streaks (flickering HUD flame), ⚡ XP + levels (square-root curve), floating +xp numbers on meaningful actions (matching, chatting, quests — not for likes), daily quests (double-tap 3 profiles / send a message / add a pic) with claimable rewards & level-up blast
 - **LIVE ⚡ quick match** (Yubo-inspired) — big pink LIVE center tab: pick anyone/girls/boys, hit start, get matched 1-on-1 instantly (scanning animation → waiting room → MATCHED → chat). Real users in the lobby match each other; demo frens keep it never-empty
 - **Vibe check 🎲** — random matchmaker card that picks people who share your vibes
-- **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
-- **Reels-style scroll feed** — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
+- **City-based matchmaking** — the spark feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
+- **Spark ✨ feed** (Reels-style scroll) — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
 - **Friend requests inbox** 💌 — accept ✓ / reject ✕ from the nav (badge count); liking back = instant frens; demo frens sometimes accept instantly
 - **Cat meme sound effects** — right swipe plays a happy kitty 🐱 (purrs included), left swipe plays a sad kiddy cat (toggle 🔊 in the header)
 - **Frens + real-time-ish chat** (polling)
