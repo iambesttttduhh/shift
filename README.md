@@ -10,7 +10,7 @@ Create an account with your email, enter your city, and **frfr** matchmakes you 
 - **Social-app interface** — 5-tab bottom bar (frens · requests · 🔥 feed · explore · me) with the feed as a center button, top action bar with 🧭 explore
 - **Explore 🧭** — vibe chips, search (name/@user/city/bio), 📍my-city or 🇮🇳 all-India scope, people grid with shared-vibe badges, tap for profile peek + request
 - **Feed filters** — on the feed itself: 📍 my city / 🇮🇳 whole india / any specific city from the dropdown, plus ✨ interest matching (pick up to 5 — shows people who have ALL of them)
-- **Engagement layer** — 🔥 daily streaks (flickering HUD flame), ⚡ XP + levels (square-root curve), floating +xp numbers on every action, daily quests (double-tap 3 profiles / send a message / add a pic) with claimable rewards & level-up blast
+- **Engagement layer** — 🔥 daily streaks (flickering HUD flame), ⚡ XP + levels (square-root curve), floating +xp numbers on meaningful actions (matching, chatting, quests — not for likes), daily quests (double-tap 3 profiles / send a message / add a pic) with claimable rewards & level-up blast
 - **LIVE ⚡ quick match** (Yubo-inspired) — big pink LIVE center tab: pick anyone/girls/boys, hit start, get matched 1-on-1 instantly (scanning animation → waiting room → MATCHED → chat). Real users in the lobby match each other; demo frens keep it never-empty
 - **Vibe check 🎲** — random matchmaker card that picks people who share your vibes
 - **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)

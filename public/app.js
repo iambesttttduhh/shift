@@ -231,7 +231,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.6 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.7 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -937,8 +937,6 @@ async function sendFriendRequest(targetId, btn) {
       toast('friend request sent 💌');
       catAnimation('happy');
       if (railBtn) { railBtn.classList.add('pop'); setTimeout(() => railBtn.classList.remove('pop'), 400); }
-      if (typeof r.xpGain === 'number') { xpFloat(r.xpGain); loadMe(); }
-      if (r.leveledUp) levelUpBlast(r.leveledUp);
       state.likesReceived++;
       if (railBtn) { railBtn.classList.remove('like', 'likesyou'); railBtn.classList.add('pending'); railBtn.textContent = '⏳'; }
       const stamp = card && $('.stamp.like', card);

@@ -915,9 +915,8 @@ addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) 
     return sendJson(res, 200, { status: 'mutual', match: { id: match.id, user: publicUser(target) } });
   }
   questProgress(user, 'likes');
-  const up = addXp(user, 10, 'sent a fren request');
   saveDb();
-  sendJson(res, 200, { status: 'sent', xpGain: 10, level: user.level || 1, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1), leveledUp: up ? up.leveledUp : null });
+  sendJson(res, 200, { status: 'sent', level: user.level || 1 });
 });
 
 addRoute('GET', '/api/nearby', { auth: true }, (req, res, params, body, user) => {
@@ -1417,7 +1416,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.6  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.6)');
+  console.log('  ✦✦✦  frfr build v2.7  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.7)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
