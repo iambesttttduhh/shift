@@ -112,6 +112,12 @@ function titleCaseName(s) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const GMAIL_RE = /^[a-z0-9](?:[a-z0-9._%+-]*[a-z0-9])?@gmail\.com$/i;
+const PHOTO_MAX = 300000; // ~300KB dataURL cap (client resizes before upload)
+
+function validPhoto(p) {
+  return typeof p === 'string' && p.startsWith('data:image/') && p.length <= PHOTO_MAX;
+}
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 /* ---------------------------------------------------------------- database */
@@ -266,11 +272,12 @@ function findUserByUsernameOrEmail(x) {
   return db.users.find(u => u.username.toLowerCase() === t || u.email.toLowerCase() === t);
 }
 
-function publicUser(u, { withEmail = false } = {}) {
+function publicUser(u, { withEmail = false, noPhoto = false } = {}) {
   if (!u) return null;
   const out = {
     id: u.id, name: u.name, username: u.username, age: u.age, city: u.city,
     gender: u.gender, bio: u.bio || '', vibes: u.vibes || [], avatar: u.avatar,
+    photo: noPhoto ? null : (u.photo || null),
     role: u.role, isBot: !!u.isBot, createdAt: u.createdAt
   };
   if (withEmail) out.email = u.email;
@@ -338,7 +345,8 @@ addRoute('POST', '/api/signup', {}, (req, res, params, body) => {
 
   if (name.length < 2 || name.length > 24) return bad(res, 'name should be 2-24 chars');
   if (!USERNAME_RE.test(username)) return bad(res, 'username: 3-16 chars, letters/numbers/_ only');
-  if (!EMAIL_RE.test(email)) return bad(res, 'thats not a real email bestie 😅');
+  if (!GMAIL_RE.test(email)) return bad(res, 'gmail only bestie 📧 sign up with ur @gmail.com');
+  if (validPhoto(body.photo) === false && body.photo !== undefined && body.photo !== null) return bad(res, 'pic too big or not an image 💀');
   if (password.length < 6) return bad(res, 'password needs at least 6 chars');
   if (!Number.isInteger(age) || age < 13 || age > 19) return bad(res, 'frfr is for teens 13-19 only');
   if (!city) return bad(res, 'enter ur city so we can find ur frens');
@@ -356,6 +364,7 @@ addRoute('POST', '/api/signup', {}, (req, res, params, body) => {
     age, city, gender, bio, vibes, avatar,
     isBot: false, createdAt: Date.now()
   };
+  if (body.photo) user.photo = body.photo;
   db.users.push(user);
   const token = crypto.randomBytes(24).toString('hex');
   db.sessions[token] = user.id;
@@ -398,6 +407,11 @@ addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
   if (body.vibes !== undefined) {
     let v = Array.isArray(body.vibes) ? body.vibes.filter(x => VIBES.some(t => t.id === x)) : [];
     user.vibes = [...new Set(v)].slice(0, 5);
+  }
+  if (body.photo !== undefined) {
+    if (body.photo === null) { delete user.photo; }
+    else if (validPhoto(body.photo)) { user.photo = body.photo; }
+    else return bad(res, 'pic too big or not an image 💀 (max ~300KB)');
   }
   if (body.avatar !== undefined && body.avatar && typeof body.avatar === 'object') {
     const emoji = EMOJIS.includes(body.avatar.emoji) ? body.avatar.emoji : user.avatar.emoji;
@@ -564,7 +578,7 @@ addRoute('GET', '/api/admin/users', { auth: true }, (req, res, params, body, use
     const swipesGiven = db.swipes.filter(s => s.from === u.id).length;
     const matches = db.matches.filter(m => m.a === u.id || m.b === u.id).length;
     const msgs = db.messages.filter(m => m.from === u.id).length;
-    return { ...publicUser(u), email: u.email, swipesGiven, matches, msgs };
+    return { ...publicUser(u, { withEmail: true, noPhoto: true }), swipesGiven, matches, msgs };
   }).sort((a, b) => b.createdAt - a.createdAt);
   sendJson(res, 200, { users: rows });
 });
@@ -584,6 +598,65 @@ addRoute('DELETE', '/api/admin/users/:id', { auth: true }, (req, res, params, bo
   }
   saveDb();
   sendJson(res, 200, { ok: true });
+});
+
+addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body, user) => {
+  if (!requireAdmin(req, res, user)) return;
+  const t = findUser(params.id);
+  if (!t) return bad(res, 'user not found', 404);
+  if (t.role === 'admin' && (body.username || body.email || body.password !== undefined)) {
+    return bad(res, 'cant rename/reemail/repass the admin account');
+  }
+  if (body.name !== undefined) {
+    const n = titleCaseName(String(body.name || ''));
+    if (n.length < 2 || n.length > 24) return bad(res, 'name should be 2-24 chars');
+    t.name = n;
+  }
+  if (body.username !== undefined) {
+    const un = String(body.username || '').trim();
+    if (!USERNAME_RE.test(un)) return bad(res, 'username: 3-16 chars, letters/numbers/_ only');
+    if (db.users.some(u => u.id !== t.id && u.username.toLowerCase() === un.toLowerCase())) return bad(res, 'username already taken 😬');
+    t.username = un;
+  }
+  if (body.email !== undefined) {
+    const em = String(body.email || '').trim().toLowerCase();
+    if (!GMAIL_RE.test(em)) return bad(res, 'gmail only bestie 📧');
+    if (db.users.some(u => u.id !== t.id && u.email.toLowerCase() === em)) return bad(res, 'email already on another account');
+    t.email = em;
+  }
+  if (body.password) {
+    if (String(body.password).length < 6) return bad(res, 'password needs at least 6 chars');
+    const { salt, hash } = hashPassword(String(body.password));
+    t.passSalt = salt; t.passHash = hash;
+  }
+  if (body.city !== undefined) {
+    const c = normalizeCity(body.city);
+    if (!c) return bad(res, 'enter a valid city');
+    t.city = c;
+  }
+  if (body.age !== undefined) {
+    const a = parseInt(body.age, 10);
+    if (!Number.isInteger(a) || a < 13 || a > 19) return bad(res, 'age must be 13-19');
+    t.age = a;
+  }
+  if (body.gender !== undefined && GENDERS.includes(body.gender)) t.gender = body.gender;
+  if (body.bio !== undefined) t.bio = String(body.bio || '').trim().slice(0, 220);
+  if (body.vibes !== undefined) {
+    let v = Array.isArray(body.vibes) ? body.vibes.filter(x => VIBES.some(y => y.id === x)) : [];
+    t.vibes = [...new Set(v)].slice(0, 5);
+  }
+  if (body.avatar !== undefined && body.avatar && typeof body.avatar === 'object') {
+    const emoji = EMOJIS.includes(body.avatar.emoji) ? body.avatar.emoji : t.avatar.emoji;
+    const grad = Number.isInteger(body.avatar.grad) && body.avatar.grad >= 0 && body.avatar.grad < GRADS.length ? body.avatar.grad : t.avatar.grad;
+    t.avatar = { emoji, grad };
+  }
+  if (body.photo !== undefined) {
+    if (body.photo === null) delete t.photo;
+    else if (validPhoto(body.photo)) t.photo = body.photo;
+    else return bad(res, 'pic too big or not an image 💀');
+  }
+  saveDb();
+  sendJson(res, 200, { user: { ...publicUser(t, { withEmail: true, noPhoto: true }) } });
 });
 
 /* ------------------------------------------------------------------ static */
@@ -678,7 +751,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.5  ✦✦✦');
+  console.log('  ✦✦✦  frfr build v1.6  ✦✦✦');
   console.log('  if u see this line, the NEWEST code is running (web badge: v1.4)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

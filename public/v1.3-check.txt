@@ -1,2 +1,3 @@
-✦✦✦ v1.5 CONFIRMED — newest server on port 3000 ✦✦✦
-Now open:  localhost:3000/?v=15   (fits normal laptop screens at 100% zoom)
+✦✦✦ v1.6 CONFIRMED — newest server on port 3000 ✦✦✦
+new: gmail-only signup, profile pics, settings menu (no insta-logout), admin can edit users
+open: localhost:3000/?v=16

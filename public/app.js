@@ -108,14 +108,67 @@ function confetti(n = 70) {
 
 /* ------------------------------------------------------------ avatar html */
 function avatarHtml(u, cls = '') {
-  return `<div class="avatar ${cls}" style="background:${gradCss(state.meta, u.avatar.grad)}" title="${esc(u.name)}">${esc(u.avatar.emoji)}</div>`;
+  const inner = u.photo
+    ? `<img src="${u.photo}" alt="">`
+    : esc(u.avatar.emoji);
+  return `<div class="avatar ${cls}" style="background:${gradCss(state.meta, u.avatar.grad)}" title="${esc(u.name)}">${inner}</div>`;
+}
+
+/* resize any image file to a small jpeg dataURL so uploads stay tiny */
+function pickPhoto(file, cb) {
+  if (!file || !file.type.startsWith('image/')) return toast('pick an image file 🖼️', 'bad');
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const S = 400;
+    const scale = Math.min(S / img.width, S / img.height, 1);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * scale));
+    c.height = Math.max(1, Math.round(img.height * scale));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    cb(c.toDataURL('image/jpeg', 0.82));
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('couldnt read that image 💀', 'bad'); };
+  img.src = url;
+}
+
+function photoFieldHtml(hasPhoto) {
+  return `
+    <div class="field"><label>ur pic <span style="text-transform:none;letter-spacing:0">(optional — shows on ur profile + cards)</span></label>
+      <div class="photo-row">
+        <div class="photo-preview ${hasPhoto ? 'has' : ''}" id="photo-prev" style="${hasPhoto ? `background-image:url('${hasPhoto}')` : ''}">${hasPhoto ? '' : '😕'}</div>
+        <div class="photo-btns">
+          <button type="button" class="btn btn-ghost btn-sm" id="photo-btn">📷 upload pic</button>
+          ${hasPhoto ? '<button type="button" class="btn btn-ghost btn-sm" id="photo-del">🗑 remove</button>' : ''}
+        </div>
+      </div>
+      <input type="file" id="photo-file" accept="image/*" hidden>
+    </div>`;
+}
+
+function wirePhotoField(onChange) {
+  const btn = $('#photo-btn'), file = $('#photo-file'), prev = $('#photo-prev');
+  if (!btn) return;
+  btn.onclick = () => file.click();
+  file.onchange = () => {
+    if (file.files && file.files[0]) {
+      pickPhoto(file.files[0], (durl) => { onChange(durl); });
+    }
+  };
+  const del = $('#photo-del');
+  if (del) del.onclick = () => onChange(null);
+  window.__applyPhotoPreview = (durl) => {
+    if (durl) { prev.style.backgroundImage = `url('${durl}')`; prev.classList.add('has'); prev.textContent = ''; }
+    else { prev.style.backgroundImage = ''; prev.classList.remove('has'); prev.textContent = '😕'; }
+  };
 }
 
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
 let authTab = 'login';
-let draft = { emoji: '😎', grad: 0, vibes: [] }; // signup form draft (avatar/vibes picks)
+let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
 
 function renderLanding() {
   stopTimers();
@@ -138,7 +191,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.5 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v1.6 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -190,11 +243,12 @@ function renderAuthCard() {
       `<button type="button" class="vibe-pick ${draft.vibes.includes(v.id) ? 'on' : ''}" data-vibe="${v.id}">${v.emoji} ${esc(v.label)}</button>`).join('');
     form.innerHTML = `
       <div class="field"><label>ur name <span class="req">*</span></label><input name="name" maxlength="24" placeholder="Aarav / Zoya..." required></div>
+      ${photoFieldHtml(draft.photo)}
       <div class="frow">
         <div class="field"><label>username <span class="req">*</span></label><input name="username" maxlength="16" placeholder="cool_user_9" required></div>
         <div class="field"><label>age <span class="req">*</span></label><input name="age" type="number" min="13" max="19" placeholder="13-19" required></div>
       </div>
-      <div class="field"><label>email <span class="req">*</span></label><input name="email" type="email" placeholder="u@email.com" required></div>
+      <div class="field"><label>email <span class="req">*</span> <span style="text-transform:none;letter-spacing:0">(gmail only!)</span></label><input name="email" type="email" placeholder="urname@gmail.com" required></div>
       <div class="frow">
         <div class="field"><label>password <span class="req">*</span></label><input name="password" type="password" minlength="6" placeholder="min 6 chars" required></div>
         <div class="field"><label>ur city <span class="req">*</span></label><input name="city" list="city-list" placeholder="Mumbai" required><datalist id="city-list">${cities}</datalist></div>
@@ -210,6 +264,7 @@ function renderAuthCard() {
       <div class="err-line" id="auth-err"></div>
       <button class="btn btn-primary btn-block" type="submit">find my frens 🔥</button>
     `;
+    wirePhotoField((durl) => { draft.photo = durl; if (window.__applyPhotoPreview) window.__applyPhotoPreview(durl); });
     // avatar + vibe pickers
     $$('.avatar-pick', form).forEach(b => b.onclick = () => {
       draft.emoji = b.dataset.emoji;
@@ -235,7 +290,8 @@ function renderAuthCard() {
         name: fd.get('name'), username: fd.get('username'), email: fd.get('email'),
         password: fd.get('password'), city: fd.get('city'), age: fd.get('age'),
         gender: fd.get('gender'), bio: fd.get('bio'),
-        vibes: draft.vibes, avatarEmoji: draft.emoji, avatarGrad: draft.grad
+        vibes: draft.vibes, avatarEmoji: draft.emoji, avatarGrad: draft.grad,
+        photo: draft.photo || undefined
       };
       try {
         const r = await api('/api/signup', { method: 'POST', body });
@@ -278,12 +334,12 @@ function renderShell() {
       <div class="logo-sm">frfr<span class="dot">.</span></div>
       <button class="city-chip" id="city-chip" title="tap to change city">📍 ${esc(u.city)}</button>
       <button class="icon-btn" id="mute-btn" title="sound on/off">${state.muted ? '🔇' : '🔊'}</button>
-      <button class="icon-btn" id="logout-btn" title="logout">⏏</button>
+      <button class="icon-btn" id="logout-btn" title="settings / logout">⚙</button>
     </div></header>
     <main class="app-col" id="view-root"></main>
     <nav class="bottom-nav"><div class="bottom-nav-in" id="nav"></div></nav>
   `;
-  $('#logout-btn').onclick = doLogout;
+  $('#logout-btn').onclick = openSettingsMenu;
   $('#mute-btn').onclick = () => {
     state.muted = !state.muted;
     localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
@@ -321,6 +377,50 @@ async function setView(v) {
   else if (v === 'matches') { await renderMatches(); }
   else if (v === 'profile') { renderProfile(); }
   else if (v === 'admin') { await renderAdmin(); }
+}
+
+function overlayCard(html) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = html;
+  document.body.appendChild(ov);
+  return ov;
+}
+
+function openSettingsMenu() {
+  const ov = overlayCard(`
+    <div class="match-card" style="max-width:330px">
+      <div class="match-title" style="font-size:26px">settings ⚙</div>
+      <p class="match-sub">what do u wanna do?</p>
+      <div class="match-actions">
+        <button class="btn btn-primary btn-block" id="st-profile">😎 edit my profile</button>
+        <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '🔇 sounds: off' : '🔊 sounds: on'}</button>
+        <button class="btn btn-pink btn-block" id="st-logout">🚪 log out</button>
+        <button class="btn btn-ghost btn-block" id="st-close">close</button>
+      </div>
+    </div>`);
+  $('#st-profile', ov).onclick = () => { ov.remove(); setView('profile'); };
+  $('#st-sound', ov).onclick = () => {
+    state.muted = !state.muted;
+    localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
+    const mb = $('#mute-btn'); if (mb) mb.textContent = state.muted ? '🔇' : '🔊';
+    ov.remove();
+    toast(state.muted ? 'sounds off 🤫' : 'sounds on 🔊');
+  };
+  $('#st-logout', ov).onclick = () => {
+    ov.innerHTML = `
+      <div class="match-card" style="max-width:330px">
+        <div class="match-title" style="font-size:26px">log out?</div>
+        <p class="match-sub">ur matches will be waiting fr 🥺</p>
+        <div class="match-actions">
+          <button class="btn btn-pink btn-block" id="lo-yes">yes, log out</button>
+          <button class="btn btn-ghost btn-block" id="lo-no">stay</button>
+        </div>
+      </div>`;
+    $('#lo-yes', ov).onclick = async () => { ov.remove(); await doLogout(); };
+    $('#lo-no', ov).onclick = () => ov.remove();
+  };
+  $('#st-close', ov).onclick = () => ov.remove();
 }
 
 async function doLogout() {
@@ -401,7 +501,7 @@ function cardHtml(u, cls) {
       <span class="card-sparkle" style="top:14%;left:12%">✦</span>
       <span class="card-sparkle" style="top:22%;right:14%;animation-delay:1.2s">✦</span>
       <span class="card-sparkle" style="bottom:20%;left:20%;animation-delay:.6s">✧</span>
-      <span class="card-emoji">${esc(u.avatar.emoji)}</span>
+      ${u.photo ? `<img class="card-photo" src="${u.photo}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
       <div class="stamp like">LIKE</div>
       <div class="stamp nope">NOPE</div>
       ${u._likedMe ? '<div class="liked-me-flag">❤ liked u already</div>' : ''}
@@ -500,9 +600,9 @@ function showMatchModal(match) {
       <div class="match-title">IT'S A MATCH!!</div>
       <p class="match-sub">u and ${esc(match.user.name)} liked each other fr fr 🫶</p>
       <div class="match-avatars">
-        <div class="mav" style="background:${gradCss(state.meta, state.user.avatar.grad)}">${esc(state.user.avatar.emoji)}</div>
+        <div class="mav" style="background:${gradCss(state.meta, state.user.avatar.grad)}">${state.user.photo ? `<img src="${state.user.photo}" alt="">` : esc(state.user.avatar.emoji)}</div>
         <div class="match-heart">💜</div>
-        <div class="mav" style="background:${gradCss(state.meta, match.user.avatar.grad)}">${esc(match.user.avatar.emoji)}</div>
+        <div class="mav" style="background:${gradCss(state.meta, match.user.avatar.grad)}">${match.user.photo ? `<img src="${match.user.photo}" alt="">` : esc(match.user.avatar.emoji)}</div>
       </div>
       <div class="match-actions">
         <button class="btn btn-primary btn-block" id="mm-chat">say hi 👋</button>
@@ -652,7 +752,7 @@ function renderProfile() {
   root.innerHTML = `
     <div class="me-card">
       <div class="me-card-media" style="background:${grad}" id="me-media">
-        <span class="card-emoji" id="me-emoji">${esc(u.avatar.emoji)}</span>
+        ${u.photo ? `<img class="card-photo" src="${u.photo}" alt="">` : `<span class="card-emoji" id="me-emoji">${esc(u.avatar.emoji)}</span>`}
       </div>
       <div class="me-card-body">
         <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
@@ -671,6 +771,7 @@ function renderProfile() {
     <h2 class="page-title" style="font-size:18px">edit ur vibe 🎨</h2>
     <p class="page-sub">change city to see frens somewhere else</p>
     <form id="edit-form">
+      ${photoFieldHtml(u.photo)}
       <div class="frow">
         <div class="field"><label>name</label><input name="name" maxlength="24" value="${esc(profileDraft.name)}"></div>
         <div class="field"><label>age</label><input name="age" type="number" min="13" max="19" value="${profileDraft.age}"></div>
@@ -689,8 +790,19 @@ function renderProfile() {
       </div>
     </form>`;
 
+  profileDraft.photo = u.photo || null;
+  wirePhotoField((durl) => {
+    profileDraft.photo = durl;
+    if (window.__applyPhotoPreview) window.__applyPhotoPreview(durl);
+    const media = $('#me-media');
+    if (durl) { media.innerHTML = `<img class="card-photo" src="${durl}" alt="">`; }
+    else { media.innerHTML = `<span class="card-emoji" id="me-emoji">${esc(profileDraft.emoji)}</span>`; }
+  });
   const syncPreview = () => {
-    $('#me-emoji').textContent = profileDraft.emoji;
+    if (!profileDraft.photo) {
+      const em = $('#me-emoji');
+      if (em) em.textContent = profileDraft.emoji;
+    }
     $('#me-media').style.background = gradCss(m, profileDraft.grad);
   };
   $$('#ep-emoji .avatar-pick').forEach(b => b.onclick = () => {
@@ -720,7 +832,8 @@ function renderProfile() {
         body: {
           name: fd.get('name'), age: fd.get('age'), city: fd.get('city'),
           gender: fd.get('gender'), bio: fd.get('bio'),
-          vibes: profileDraft.vibes, avatar: { emoji: profileDraft.emoji, grad: profileDraft.grad }
+          vibes: profileDraft.vibes, avatar: { emoji: profileDraft.emoji, grad: profileDraft.grad },
+          photo: profileDraft.photo
         }
       });
       const cityChanged = r.user.city !== state.user.city;
@@ -796,8 +909,12 @@ async function renderAdmin() {
           <td>${u.matches}</td>
           <td>${u.msgs}</td>
           <td>${timeAgo(u.createdAt)}</td>
-          <td><button class="del-btn" data-id="${esc(u.id)}" data-name="${esc(u.name)}">delete</button></td>
+          <td style="white-space:nowrap"><button class="edit-btn" data-id="${esc(u.id)}">✏️ edit</button> <button class="del-btn" data-id="${esc(u.id)}" data-name="${esc(u.name)}">delete</button></td>
         </tr>`).join('') || `<tr><td colspan="10" class="muted-dim" style="text-align:center;padding:24px">no users match "${esc(t)}"</td></tr>`;
+      $$('#admin-rows .edit-btn').forEach(b => b.onclick = () => {
+        const u = adminRows.find(x => x.id === b.dataset.id);
+        if (u) editUserModal(u);
+      });
       $$('#admin-rows .del-btn').forEach(b => b.onclick = () => deleteUser(b.dataset.id, b.dataset.name));
     };
     drawRows('');
@@ -815,6 +932,97 @@ async function deleteUser(id, name) {
     toast(name + ' deleted 👋', 'good');
     renderAdmin();
   } catch (e) { toast(e.message, 'bad'); }
+}
+
+/* ---------------------------------------------------- admin: edit user */
+function editUserModal(u) {
+  const m = state.meta;
+  const cities = m.cities.map(c => `<option value="${esc(c)}">`).join('');
+  const ov = overlayCard(`
+    <div class="match-card admin-edit">
+      <div class="match-title" style="font-size:24px">edit @${esc(u.username)} ✏️</div>
+      <p class="match-sub">changes save instantly to their account</p>
+      <form id="eu-form">
+        <div class="frow">
+          <div class="field"><label>name</label><input name="name" maxlength="24" value="${esc(u.name)}"></div>
+          <div class="field"><label>username</label><input name="username" maxlength="16" value="${esc(u.username)}"></div>
+        </div>
+        <div class="field"><label>email (gmail only)</label><input name="email" type="email" value="${esc(u.email)}"></div>
+        <div class="frow">
+          <div class="field"><label>new password <span style="text-transform:none;letter-spacing:0">(blank = keep)</span></label><input name="password" type="text" placeholder="min 6 chars"></div>
+          <div class="field"><label>city</label><input name="city" list="eu-cities" value="${esc(u.city)}"><datalist id="eu-cities">${cities}</datalist></div>
+        </div>
+        <div class="frow">
+          <div class="field"><label>age</label><input name="age" type="number" min="13" max="19" value="${u.age}"></div>
+          <div class="field"><label>i'm a...</label>
+            <select name="gender">${m.genders.map(g => `<option value="${esc(g)}" ${g === u.gender ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>bio</label><textarea name="bio" maxlength="220">${esc(u.bio)}</textarea></div>
+        <div class="field"><label>vibes (max 5)</label><div class="vibe-grid" id="eu-vibes">
+          ${m.vibes.map(v => `<button type="button" class="vibe-pick ${(u.vibes || []).includes(v.id) ? 'on' : ''}" data-vibe="${v.id}">${v.emoji} ${esc(v.label)}</button>`).join('')}
+        </div></div>
+        <div class="field"><label>profile pic</label>
+          <div class="photo-row">
+            <div class="photo-preview ${u.photo ? 'has' : ''}" id="eu-prev" style="${u.photo ? `background-image:url('${u.photo}')` : ''}">${u.photo ? '' : '😕'}</div>
+            <div class="photo-btns">
+              <button type="button" class="btn btn-ghost btn-sm" id="eu-photo-btn">📷 set pic</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="eu-photo-del">🗑 remove</button>
+            </div>
+          </div>
+          <input type="file" id="eu-photo-file" accept="image/*" hidden>
+        </div>
+        <div class="err-line" id="eu-err"></div>
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <button class="btn btn-primary" type="submit" style="flex:1">save changes ✌️</button>
+          <button class="btn btn-ghost" type="button" id="eu-cancel">cancel</button>
+        </div>
+      </form>
+    </div>`);
+
+  const vibes = [...(u.vibes || [])];
+  $$('#eu-vibes .vibe-pick', ov).forEach(b => b.onclick = () => {
+    const id = b.dataset.vibe;
+    if (vibes.includes(id)) { vibes.splice(vibes.indexOf(id), 1); b.classList.remove('on'); }
+    else if (vibes.length < 5) { vibes.push(id); b.classList.add('on'); }
+    else toast('max 5 vibes', 'bad');
+  });
+
+  let photo = u.photo || null;
+  $('#eu-photo-btn', ov).onclick = () => $('#eu-photo-file', ov).click();
+  $('#eu-photo-file', ov).onchange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      pickPhoto(e.target.files[0], (durl) => {
+        photo = durl;
+        const p = $('#eu-prev', ov);
+        p.style.backgroundImage = `url('${durl}')`; p.classList.add('has'); p.textContent = '';
+      });
+    }
+  };
+  $('#eu-photo-del', ov).onclick = () => {
+    photo = null;
+    const p = $('#eu-prev', ov);
+    p.style.backgroundImage = ''; p.classList.remove('has'); p.textContent = '😕';
+  };
+
+  $('#eu-cancel', ov).onclick = () => ov.remove();
+  $('#eu-form', ov).onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {
+      name: fd.get('name'), username: fd.get('username'), email: fd.get('email'),
+      city: fd.get('city'), age: fd.get('age'), gender: fd.get('gender'),
+      bio: fd.get('bio'), vibes, photo
+    };
+    const pw = String(fd.get('password') || '');
+    if (pw) body.password = pw;
+    try {
+      await api(`/api/admin/users/${encodeURIComponent(u.id)}`, { method: 'PUT', body });
+      toast('@' + u.username + ' updated ✌️', 'good');
+      ov.remove();
+      renderAdmin();
+    } catch (ex) { $('#eu-err', ov).textContent = ex.message; }
+  };
 }
 
 /* ============================================================
