@@ -474,7 +474,8 @@ function publicUser(u, { withEmail = false, noPhoto = false } = {}) {
     gender: u.gender, bio: u.bio || '', vibes: u.vibes || [], avatar: u.avatar,
     photo: noPhoto ? null : (u.photo || null),
     photos: noPhoto ? [] : photos,
-    role: u.role, isBot: !!u.isBot, createdAt: u.createdAt
+    role: u.role, isBot: !!u.isBot, createdAt: u.createdAt,
+    lastSeen: u.lastSeen || u.createdAt || 0
   };
   if (withEmail) out.email = u.email;
   return out;
@@ -520,7 +521,7 @@ addRoute('GET', '/api/meta', {}, (req, res) => {
   const nonAdmin = db.users.filter(u => u.role !== 'admin');
   const citySet = new Set(nonAdmin.map(u => u.city.toLowerCase()));
   sendJson(res, 200, {
-    cities: CITIES, vibes: VIBES, emojis: EMOJIS,
+    cities: CITIES, vibes: VIBES, emojis: EMOJIS, vibeById: Object.fromEntries(VIBES.map(v => [v.id, v])),
     grads: GRADS.map(g => ({ from: g[0], to: g[1] })),
     genders: GENDERS,
     stats: { users: nonAdmin.filter(u => !u.isBot).length, frens: nonAdmin.length, cities: citySet.size }
@@ -687,6 +688,48 @@ addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
 });
 
 /* --------------------------------------------------------------- api: deck */
+addRoute('GET', '/api/trending', { auth: true }, (req, res, params, body, user) => {
+  const cityLc = user.city.toLowerCase();
+  const countVibes = (list) => {
+    const m = new Map();
+    for (const id of list) m.set(id, (m.get(id) || 0) + 1);
+    return m;
+  };
+  const mine = countVibes(db.users.filter(u => u.role !== 'admin' && u.city.toLowerCase() === cityLc && u.id !== user.id).flatMap(u => u.vibes || []));
+  const all = countVibes(db.users.filter(u => u.role !== 'admin' && u.id !== user.id).flatMap(u => u.vibes || []));
+  const shape = (map) => [...map.entries()]
+    .map(([id, n]) => ({ id, n, vibe: VIBES.find(v => v.id === id) }))
+    .filter(x => x.vibe)
+    .sort((a, b) => b.n - a.n).slice(0, 8);
+  sendJson(res, 200, { city: shape(mine), india: shape(all) });
+});
+
+addRoute('GET', '/api/explore', { auth: true }, (req, res, params, body, user) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const vibe = q.get('vibe');
+  const search = (q.get('q') || '').trim().toLowerCase();
+  const scope = q.get('scope') || 'city'; // city | india
+  const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
+
+  let pool = db.users.filter(u => u.id !== user.id && u.role !== 'admin' && !frenIds.has(u.id));
+  if (scope === 'city') pool = pool.filter(u => u.city.toLowerCase() === user.city.toLowerCase());
+  if (vibe && VIBES.some(v => v.id === vibe)) pool = pool.filter(u => (u.vibes || []).includes(vibe));
+  if (search) pool = pool.filter(u =>
+    u.name.toLowerCase().includes(search) ||
+    u.username.toLowerCase().includes(search) ||
+    u.city.toLowerCase().includes(search) ||
+    (u.bio || '').toLowerCase().includes(search)
+  );
+  // sort: recently online first, then newest members
+  pool.sort((a, b) => (b.lastSeen || b.createdAt || 0) - (a.lastSeen || a.createdAt || 0));
+  const onlineCount = pool.filter(u => (u.lastSeen || 0) > Date.now() - 120000).length;
+  sendJson(res, 200, {
+    people: pool.slice(0, 40).map(u => publicUser(u)),
+    onlineCount,
+    total: pool.length
+  });
+});
+
 addRoute('GET', '/api/feed', { auth: true }, (req, res, params, body, user) => {
   const q = new URL(req.url, 'http://x').searchParams;
   const page = Math.max(0, parseInt(q.get('page') || '0', 10) || 0);
@@ -757,6 +800,43 @@ addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) 
   }
   saveDb();
   sendJson(res, 200, { status: 'sent' });
+});
+
+addRoute('GET', '/api/nearby', { auth: true }, (req, res, params, body, user) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const radius = Math.min(500, Math.max(10, parseInt(q.get('radius') || '100', 10) || 100));
+  const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
+  const cityLc = user.city.toLowerCase();
+  const sameCity = [];
+  const nearCities = new Map();
+  for (const u of db.users) {
+    if (u.id === user.id || u.role === 'admin' || frenIds.has(u.id)) continue;
+    if (u.city.toLowerCase() === cityLc) { sameCity.push(u); continue; }
+    // rough "near" = shares first 3 letters of city name or within same state cluster (demo heuristic)
+    const key = u.city.toLowerCase();
+    nearCities.set(key, (nearCities.get(key) || 0) + 1);
+  }
+  const nearList = [...nearCities.entries()].map(([c, n]) => ({ city: c, users: n }))
+    .sort((a, b) => b.users - a.users).slice(0, 6);
+  const onlineNow = sameCity.filter(u => (u.lastSeen || 0) > Date.now() - 120000);
+  sendJson(res, 200, {
+    onlineNow: onlineNow.slice(0, 20).map(u => publicUser(u)),
+    onlineCount: onlineNow.length,
+    sameCityCount: sameCity.length,
+    nearCities: nearList,
+    radius
+  });
+});
+
+addRoute('GET', '/api/vibe-check', { auth: true }, (req, res, params, body, user) => {
+  const frenIds = new Set(db.matches.filter(m => m.a === user.id || m.b === user.id).map(m => (m.a === user.id ? m.b : m.a)));
+  const pool = db.users.filter(u => u.id !== user.id && u.role !== 'admin' && !frenIds.has(u.id));
+  if (!pool.length) return sendJson(res, 200, { person: null });
+  // pick by shared vibes first, else random
+  const shared = pool.filter(u => (u.vibes || []).some(v => (user.vibes || []).includes(v)));
+  const person = publicUser(shared.length ? shared[Math.floor(Math.random() * shared.length)] : pool[Math.floor(Math.random() * pool.length)]);
+  const sharedVibes = (person.vibes || []).filter(v => (user.vibes || []).includes(v));
+  sendJson(res, 200, { person, sharedVibes });
 });
 
 addRoute('GET', '/api/requests', { auth: true }, (req, res, params, body, user) => {
@@ -1098,6 +1178,8 @@ const server = http.createServer(async (req, res) => {
         if (!user.emailVerified && user.role !== 'admin') {
           return sendJson(res, 403, { error: 'verify ur email first 📬 check ur inbox', code: 'UNVERIFIED' });
         }
+        const now = Date.now();
+        if (!user.lastSeen || now - user.lastSeen > 30000) { user.lastSeen = now; saveDb(); }
       }
       try {
         return await r.handler(req, res, params, body, user, { token });
@@ -1116,7 +1198,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v1.10  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v1.10)');
+  console.log('  ✦✦✦  frfr build v2.0  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.0)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });

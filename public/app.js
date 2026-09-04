@@ -199,7 +199,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v1.10 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.0 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -449,7 +449,8 @@ function renderShell() {
   const u = state.user;
   app.innerHTML = `
     <header class="topbar"><div class="topbar-in">
-      <div class="logo-sm">frfr<span class="dot">.</span></div>
+      <div class="logo-sm" id="tb-logo">frfr<span class="dot">.</span></div>
+      <button class="icon-btn tb-icon" id="tb-explore" title="explore">🧭</button>
       <button class="city-chip" id="city-chip" title="tap to change city">📍 ${esc(u.city)}</button>
       <button class="icon-btn" id="mute-btn" title="sound on/off">${state.muted ? '🔇' : '🔊'}</button>
       <button class="icon-btn" id="logout-btn" title="settings / logout">⚙</button>
@@ -458,6 +459,8 @@ function renderShell() {
     <nav class="bottom-nav"><div class="bottom-nav-in" id="nav"></div></nav>
   `;
   $('#logout-btn').onclick = openSettingsMenu;
+  $('#tb-explore').onclick = () => setView('explore');
+  $('#tb-logo').onclick = () => setView('feed');
   $('#mute-btn').onclick = () => {
     state.muted = !state.muted;
     localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
@@ -471,15 +474,15 @@ function renderShell() {
 function renderNav() {
   const u = state.user;
   const tabs = [
-    { id: 'feed', icon: '🔥', label: 'feed' },
     { id: 'matches', icon: '💬', label: 'frens' },
     { id: 'requests', icon: '💌', label: 'requests', dot: true },
-    ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : []),
-    { id: 'profile', icon: '😎', label: 'me' }
+    { id: 'feed', icon: '🔥', label: 'feed', big: true },
+    { id: 'explore', icon: '🧭', label: 'explore' },
+    ...(u.role === 'admin' ? [{ id: 'admin', icon: '🛡️', label: 'admin' }] : [{ id: 'profile', icon: '😎', label: 'me' }])
   ];
   $('#nav').innerHTML = tabs.map(t =>
-    `<button class="nav-btn ${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
-       <span class="ni">${t.icon}</span>${t.label}
+    `<button class="nav-btn ${t.big ? 'big ' : ''}${state.view === t.id && !state.activeMatch ? 'on' : ''}" data-view="${t.id}">
+       <span class="ni">${t.icon}</span>${t.big ? '' : t.label}
        ${t.dot ? '<span class="nav-dot" id="nav-req-dot" style="display:none"></span>' : ''}
      </button>`).join('');
   $$('#nav .nav-btn').forEach(b => b.onclick = () => {
@@ -497,6 +500,9 @@ async function setView(v) {
   if (v === 'feed') { initFeed(); }
   else if (v === 'matches') { await renderMatches(); }
   else if (v === 'requests') { await renderRequests(); }
+  else if (v === 'explore') { renderExplore(); }
+  else if (v === 'nearby') { renderNearby(); }
+  else if (v === 'vibecheck') { renderVibeCheck(); }
   else if (v === 'profile') { renderProfile(); }
   else if (v === 'admin') { await renderAdmin(); }
 }
@@ -515,13 +521,15 @@ function openSettingsMenu() {
       <div class="match-title" style="font-size:26px">settings ⚙</div>
       <p class="match-sub">what do u wanna do?</p>
       <div class="match-actions">
-        <button class="btn btn-primary btn-block" id="st-profile">😎 edit my profile</button>
+        <button class="btn btn-primary btn-block" id="st-profile">😎 my profile</button>
+        <button class="btn btn-ghost btn-block" id="st-explore">🧭 explore</button>
         <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '🔇 sounds: off' : '🔊 sounds: on'}</button>
         <button class="btn btn-pink btn-block" id="st-logout">🚪 log out</button>
         <button class="btn btn-ghost btn-block" id="st-close">close</button>
       </div>
     </div>`);
   $('#st-profile', ov).onclick = () => { ov.remove(); setView('profile'); };
+  $('#st-explore', ov).onclick = () => { ov.remove(); setView('explore'); };
   $('#st-sound', ov).onclick = () => {
     state.muted = !state.muted;
     localStorage.setItem('frfr_muted', state.muted ? '1' : '0');
@@ -879,6 +887,203 @@ async function openChat(matchId, otherUser) {
       }
     } catch (ex) { toast(ex.message, 'bad'); input.value = text; }
   };
+}
+
+/* ============================================================
+   EXPLORE 🧭 — vibes · search · trending
+   ============================================================ */
+let exploreState = { vibe: null, q: '', scope: 'city' };
+
+function renderExplore() {
+  const root = $('#view-root');
+  root.innerHTML = `
+    <div class="explore-head">
+      <h2 class="page-title" style="margin-top:14px">explore 🧭</h2>
+      <div class="seg" id="ex-scope">
+        <button data-s="city" class="on">📍 my city</button>
+        <button data-s="india">🇮🇳 all india</button>
+      </div>
+      <input id="ex-q" placeholder="🔍 search name, @username, city..." autocomplete="off">
+    </div>
+    <div class="vibe-scroller" id="ex-vibes"><div class="spin"></div></div>
+    <div id="ex-results"><div class="spin"></div></div>`;
+
+  $('#ex-scope').querySelectorAll('button').forEach(b => b.onclick = () => {
+    exploreState.scope = b.dataset.s;
+    root.querySelectorAll('#ex-scope button').forEach(x => x.classList.toggle('on', x === b));
+    loadExploreResults();
+  });
+  let qt;
+  $('#ex-q').oninput = (e) => {
+    clearTimeout(qt);
+    qt = setTimeout(() => { exploreState.q = e.target.value; loadExploreResults(); }, 300);
+  };
+
+  api('/api/trending').then(t => {
+    const host = $('#ex-vibes');
+    if (!host) return;
+    const chips = [{ id: null, label: 'all vibes', emoji: '✨' }]
+      .concat(t.city.map(x => x.vibe))
+      .map(v => `<button class="vchip ${exploreState.vibe === v.id ? 'on' : ''}" data-v="${v.id || ''}">${v.emoji} ${esc(v.label)}</button>`).join('');
+    host.innerHTML = `<div class="vibe-row">${chips}</div>`;
+    host.querySelectorAll('.vchip').forEach(c => c.onclick = () => {
+      exploreState.vibe = c.dataset.v || null;
+      host.querySelectorAll('.vchip').forEach(x => x.classList.toggle('on', x === c));
+      loadExploreResults();
+    });
+  }).catch(() => { const h = $('#ex-vibes'); if (h) h.innerHTML = ''; });
+
+  loadExploreResults();
+}
+
+async function loadExploreResults() {
+  const host = $('#ex-results');
+  if (!host) return;
+  host.innerHTML = '<div class="spin"></div>';
+  try {
+    const p = new URLSearchParams();
+    if (exploreState.vibe) p.set('vibe', exploreState.vibe);
+    if (exploreState.q) p.set('q', exploreState.q);
+    p.set('scope', exploreState.scope);
+    const r = await api('/api/explore?' + p.toString());
+    if (!$('#ex-results')) return;
+    if (!r.people.length) {
+      host.innerHTML = `<div class="empty-deck" style="padding:40px 10px"><div class="big">🕵️</div><h3 style="font-size:16px">no one found</h3><p>try another vibe or search — or switch to 🇮🇳 all india</p></div>`;
+      return;
+    }
+    host.innerHTML = `
+      <p class="page-sub">${r.people.length} ppl${r.onlineCount ? ` · <span class="on-dot">🟢 ${r.onlineCount} online now</span>` : ''}</p>
+      <div class="grid2">
+        ${r.people.map(u => {
+          const shared = (u.vibes || []).filter(v => (state.user.vibes || []).includes(v));
+          const topVibes = (u.vibes || []).slice(0, 3).map(id => {
+            const v = state.meta.vibeById[id] || state.meta.vibes.find(x => x.id === id);
+            return v ? `<span class="chip">${v.emoji}</span>` : '';
+          }).join('');
+          return `
+          <button class="pcard" data-id="${esc(u.id)}" data-name="${esc(u.name)}" data-username="${esc(u.username)}" data-raw='${esc(JSON.stringify(u))}'>
+            ${avatarHtml(u, 'pavatar')}
+            <div class="pcard-name">${esc(u.name.split(' ')[0])} <span>${u.age}</span></div>
+            <div class="pcard-city">📍 ${esc(u.city)}</div>
+            <div class="pcard-vibes">${topVibes}</div>
+            ${shared.length ? `<div class="pcard-shared">${shared.length} shared vibe${shared.length > 1 ? 's' : ''} ✨</div>` : ''}
+          </button>`;
+        }).join('')}
+      </div>`;
+    $$('.pcard', host).forEach(c => c.onclick = () => {
+      try { openProfilePeek(JSON.parse(c.dataset.raw)); } catch (x) {}
+    });
+  } catch (e) {
+    host.innerHTML = '<div class="empty-deck"><div class="big">💀</div><p>' + esc(e.message) + '</p></div>';
+  }
+}
+
+/* profile peek popup from any card */
+function openProfilePeek(u) {
+  const m = state.meta;
+  const photos = u.photos || [];
+  const shared = (u.vibes || []).filter(v => (state.user.vibes || []).includes(v));
+  const ov = overlayCard(`
+    <div class="match-card peek">
+      <div class="peek-media" style="background:${gradCss(m, u.avatar.grad)}">
+        ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+        <button class="peek-x">✕</button>
+        ${u._likesYou || false ? '' : ''}
+      </div>
+      <div class="peek-body">
+        <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
+        <div class="card-loc">@${esc(u.username)} · 📍 ${esc(u.city)} · ${esc(u.gender)}</div>
+        ${u.bio ? `<p class="card-bio">${esc(u.bio)}</p>` : ''}
+        ${(u.vibes || []).length ? `<div class="chips">${(u.vibes || []).map(id => { const v = m.vibeById[id] || m.vibes.find(x => x.id === id); return v ? `<span class="chip">${v.emoji} ${esc(v.label)}</span>` : ''; }).join('')}</div>` : ''}
+        ${shared.length ? `<p class="shared-note">✨ u both vibe with ${shared.map(v => { const vv = m.vibeById[v] || m.vibes.find(x => x.id === v); return vv ? vv.emoji + ' ' + esc(vv.label) : ''; }).join(', ')}</p>` : ''}
+        <div class="match-actions" style="margin-top:14px">
+          <button class="btn btn-pink btn-block" id="peek-like">💌 send friend request</button>
+          <button class="btn btn-ghost btn-block" id="peek-close">close</button>
+        </div>
+      </div>
+    </div>`);
+  $('.peek-x', ov).onclick = () => ov.remove();
+  $('#peek-close', ov).onclick = () => ov.remove();
+  $('#peek-like', ov).onclick = async (e) => {
+    const btn = e.target;
+    btn.disabled = true;
+    try {
+      const r = await api('/api/request', { method: 'POST', body: { targetId: u.id } });
+      if (r.status === 'mutual') { ov.remove(); confetti(70); state.matchesCount++; showFrensModal(r.match); }
+      else { btn.textContent = '⏳ request sent'; btn.disabled = true; toast('friend request sent 💌'); }
+    } catch (x) { btn.disabled = false; toast(x.message, 'bad'); }
+  };
+}
+
+/* ============================================================
+   NEARBY 🛰️ (inside explore)
+   ============================================================ */
+async function renderNearby() {
+  const root = $('#view-root');
+  root.innerHTML = '<div class="spin"></div>';
+  try {
+    const r = await api('/api/nearby?radius=100');
+    root.innerHTML = `
+      <h2 class="page-title" style="margin-top:14px">near u 🛰️</h2>
+      <p class="page-sub">${r.onlineCount} online now · ${r.sameCityCount} in ${esc(state.user.city)}</p>
+      ${r.onlineNow.length ? `
+        <h2 class="page-title" style="font-size:17px">🟢 online now</h2>
+        <div class="hscroll">${r.onlineNow.map(u => `
+          <button class="ocard" data-raw='${esc(JSON.stringify(u))}'>
+            ${avatarHtml(u, 'oavatar')}
+            <div class="ocard-n">${esc(u.name.split(' ')[0])}</div>
+            <div class="ocard-on">online</div>
+          </button>`).join('')}</div>` : '<p class="page-sub">no one online this second — check the feed 💤</p>'}
+      <h2 class="page-title" style="font-size:17px">cities near ${esc(state.user.city)}</h2>
+      ${r.nearCities.length ? `<div class="chips" style="padding:0 2px">${r.nearCities.map(c => `<span class="chip">📍 ${esc(c.city)} · ${c.users}</span>`).join('')}</div>` : '<p class="page-sub">just u out here so far 😄</p>'}
+      <div class="section-gap"></div>`;
+    $$('.ocard', root).forEach(c => c.onclick = () => { try { openProfilePeek(JSON.parse(c.dataset.raw)); } catch (x) {} });
+  } catch (e) {
+    root.innerHTML = '<div class="empty-deck"><div class="big">💀</div><p>' + esc(e.message) + '</p></div>';
+  }
+}
+
+/* ============================================================
+   VIBE CHECK 🎲 — random matchmaker card
+   ============================================================ */
+async function renderVibeCheck() {
+  const root = $('#view-root');
+  root.innerHTML = `
+    <h2 class="page-title" style="margin-top:14px">vibe check 🎲</h2>
+    <p class="page-sub">random matchmaker — could be destiny, could be chaos</p>
+    <div id="vc-stage"><div class="spin"></div></div>
+    <button class="btn btn-ghost btn-block" id="vc-again" style="margin-top:14px">🎲 someone else</button>`;
+  $('#vc-again').onclick = loadVibeCheck;
+  await loadVibeCheck();
+}
+
+async function loadVibeCheck() {
+  const stage = $('#vc-stage');
+  if (!stage) return;
+  stage.innerHTML = '<div class="spin"></div>';
+  try {
+    const r = await api('/api/vibe-check');
+    if (!r.person) { stage.innerHTML = '<div class="empty-deck"><div class="big">🫙</div><h3>nobody left!</h3></div>'; return; }
+    const u = r.person;
+    const shared = r.sharedVibes || [];
+    stage.innerHTML = `
+      <div class="vc-card" style="background:${gradCss(state.meta, u.avatar.grad)}">
+        ${u.photos && u.photos[0] ? `<img class="feed-photo" src="${u.photos[0]}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+        <div class="vc-info">
+          <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
+          <div class="card-loc">📍 ${esc(u.city)} · @${esc(u.username)}</div>
+          ${shared.length ? `<div class="vc-shared">✨ ${shared.length} shared vibe${shared.length > 1 ? 's' : ''} — destiny fr</div>` : '<div class="vc-shared dim"> opposites attract? lets find out </div>'}
+        </div>
+      </div>
+      <button class="btn btn-pink btn-block" id="vc-like" style="margin-top:12px">💌 vibe check passed — request frenship</button>`;
+    $('#vc-like').onclick = (e) => {
+      heartBurst(e.clientX, e.clientY);
+      sendFriendRequest(u.id);
+      setTimeout(loadVibeCheck, 500);
+    };
+  } catch (e) {
+    stage.innerHTML = '<div class="empty-deck"><div class="big">💀</div><p>' + esc(e.message) + '</p></div>';
+  }
 }
 
 /* ============================================================

@@ -7,6 +7,9 @@ Create an account with your email, enter your city, and **frfr** matchmakes you 
 ## ✨ Features
 
 - **Email signup** (any provider — one account per mailbox, +tag/dot tricks blocked) + **login with username or email & password**
+- **Social-app interface** — 5-tab bottom bar (frens · requests · 🔥 feed · explore · me) with the feed as a center button, top action bar with 🧭 explore
+- **Explore 🧭** — vibe chips, search (name/@user/city/bio), 📍my-city or 🇮🇳 all-India scope, people grid with shared-vibe badges, tap for profile peek + request
+- **Vibe check 🎲** — random matchmaker card that picks people who share your vibes
 - **City-based matchmaking** — the feed only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
 - **Reels-style scroll feed** — scroll profiles, flip pic galleries (up to 3, first = cover), **double-tap = friend request** with heart-burst + happy-cat dopamine; scroll past to skip
 - **Friend requests inbox** 💌 — accept ✓ / reject ✕ from the nav (badge count); liking back = instant frens; demo frens sometimes accept instantly
@@ -71,6 +74,10 @@ The app ships with a built-in zero-dependency SMTP client (STARTTLS + AUTH PLAIN
 |---|---|---|
 | POST | `/api/signup` | create account |
 | POST | `/api/login` | login (username **or** email) |
+| GET | `/api/trending` | top vibes in ur city + india |
+| GET | `/api/explore` | vibe filter + search people |
+| GET | `/api/nearby` | who's online now + cities near u |
+| GET | `/api/vibe-check` | random matchmaker pick |
 | GET | `/api/feed` | scrollable profiles from your city (paginated) |
 | POST | `/api/request` | send a friend request (mutual = instant frens) |
 | GET | `/api/requests` | your inbox (incoming + sent) |

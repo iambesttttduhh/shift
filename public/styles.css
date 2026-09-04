@@ -734,3 +734,123 @@ code.kbd { background: rgba(255,255,255,.08); padding: 2px 7px; border-radius: 6
 .mail-steps li { margin-bottom: 3px; }
 .mail-pill { display: inline-block; font-size: 12.5px; font-weight: 800; padding: 6px 13px; border-radius: 999px; border: 1px dashed rgba(255,255,255,.3); color: var(--dim); }
 .mail-pill.on { background: rgba(204,255,51,.12); border: 1px solid rgba(204,255,51,.5); color: var(--lime); }
+
+/* ====================================================
+   v2.0 — social-app interface: tab bar, explore, cards
+   ==================================================== */
+.app-col { padding-bottom: 110px; }
+
+/* topbar action icons */
+.tb-icon { margin-left: 2px; }
+#tb-logo { cursor: pointer; }
+
+/* bottom nav with center FAB-style feed button */
+.bottom-nav-in { padding: 6px; }
+.nav-btn { padding: 8px 14px; min-width: 60px; }
+.nav-btn.big {
+  background: linear-gradient(135deg, var(--pink), #ff8a5c);
+  color: #fff;
+  width: 58px; height: 58px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  box-shadow: 0 8px 24px rgba(255, 77, 141, .45);
+  margin: 0 4px;
+  transform: translateY(-14px);
+  border: 3px solid #14141c;
+}
+.nav-btn.big .ni { font-size: 25px; }
+.nav-btn.big.on { background: linear-gradient(135deg, var(--lime), var(--cyan)); color: #000; box-shadow: 0 8px 24px rgba(204,255,51,.45); }
+.nav-btn.big.on + .nav-btn, .nav-btn:has(+ .nav-btn.big.on) { }
+
+/* explore */
+.seg { display: flex; gap: 4px; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin: 12px 0 10px; width: fit-content; }
+.seg button { padding: 8px 15px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: var(--dim); }
+.seg button.on { background: linear-gradient(100deg, var(--lime), var(--cyan)); color: #000; }
+.explore-head input {
+  width: 100%; background: rgba(0,0,0,.35); border: 1px solid var(--line);
+  border-radius: 999px; padding: 12px 17px; outline: none; margin-bottom: 12px;
+}
+.explore-head input:focus { border-color: var(--lime); }
+
+.vibe-scroller { overflow-x: auto; scrollbar-width: none; margin: 0 -16px 8px; padding: 2px 16px; }
+.vibe-scroller::-webkit-scrollbar { display: none; }
+.vibe-row { display: flex; gap: 7px; width: max-content; padding-bottom: 4px; }
+.vchip {
+  flex-shrink: 0; font-size: 12.5px; font-weight: 800;
+  padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  transition: all .15s;
+}
+.vchip.on { background: linear-gradient(100deg, var(--lime), var(--cyan)); color: #000; border-color: transparent; box-shadow: 0 4px 16px rgba(204,255,51,.3); }
+
+.on-dot { color: var(--lime); font-weight: 800; }
+
+/* people grid */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pcard {
+  text-align: left;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel);
+  padding: 14px 12px 12px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  transition: transform .14s, border-color .14s;
+  animation: cardIn .25s ease-out backwards;
+}
+.pcard:hover { transform: translateY(-3px); border-color: rgba(204,255,51,.4); }
+.pavatar { width: 56px; height: 56px; font-size: 27px; margin-bottom: 6px; }
+.pavatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.pcard-name { font-weight: 800; font-size: 15px; }
+.pcard-name span { color: var(--lime); font-size: 12.5px; }
+.pcard-city { font-size: 11.5px; color: var(--dim); font-weight: 600; }
+.pcard-vibes { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+.pcard-vibes .chip { font-size: 11px; padding: 3px 8px; }
+.pcard-shared { margin-top: 6px; font-size: 11px; font-weight: 800; color: var(--purple); }
+
+/* horizontal scroll row (nearby online) */
+.hscroll { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 12px; scrollbar-width: none; }
+.hscroll::-webkit-scrollbar { display: none; }
+.ocard {
+  flex-shrink: 0; width: 86px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 12px 6px 10px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--panel);
+  transition: transform .14s, border-color .14s;
+}
+.ocard:hover { transform: translateY(-3px); border-color: rgba(204,255,51,.4); }
+.oavatar { width: 52px; height: 52px; font-size: 25px; }
+.oavatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.ocard-n { font-size: 12.5px; font-weight: 800; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-on { font-size: 10px; color: var(--lime); font-weight: 800; }
+
+/* profile peek modal */
+.match-card.peek { padding: 0; overflow: hidden; max-width: 380px; }
+.peek-media { position: relative; height: 240px; display: grid; place-items: center; overflow: hidden; }
+.peek-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.peek-media .card-emoji { font-size: 96px; }
+.peek-x {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(10,10,15,.6); color: #fff; font-size: 15px;
+  backdrop-filter: blur(6px); border: 1px solid var(--line);
+}
+.peek-body { padding: 18px 20px 22px; }
+.shared-note { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--purple); }
+
+/* vibe check */
+.vc-card {
+  position: relative; height: 380px; border-radius: var(--r-lg);
+  overflow: hidden; border: 1px solid var(--line);
+  display: grid; place-items: center;
+  animation: cardIn .3s ease-out;
+  box-shadow: 0 18px 50px rgba(0,0,0,.5);
+}
+.vc-card .card-emoji { font-size: 110px; animation: bob 3.4s ease-in-out infinite; }
+.vc-info { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 20px; background: linear-gradient(transparent, rgba(5,5,9,.92)); z-index: 2; }
+.vc-shared { margin-top: 8px; font-size: 13.5px; font-weight: 800; color: var(--lime); }
+.vc-shared.dim { color: var(--dim); font-weight: 600; }
+
+@media (min-width: 720px) and (max-height: 920px) {
+  .vc-card { height: 330px; }
+  .peek-media { height: 200px; }
+}
