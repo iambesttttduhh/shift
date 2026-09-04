@@ -1,1 +1,70 @@
-# shift
+# frfr. — make frens in ur city ✦
+
+A Gen-Z style social web app for teens (13–19) across **India** to socialize and make new friends in their own city.
+
+Create an account with your email, enter your city, and **frfr** matchmakes you with people from that exact city. Swipe **right** to like (🔊 *happy happy happy!*) or **left** to pass (🔊 *ohhh nooooo*). Mutual right swipes = **IT'S A MATCH** → chat opens up. No cap.
+
+## ✨ Features
+
+- **Email signup** (name, username, email, password, age 13–19, city, avatar, bio, vibes) + **login with username or email & password**
+- **City-based matchmaking** — the swipe deck only shows people from the city you entered (common aliases work too: "Bangalore" → Bengaluru, "Gurgaon" → Gurugram, …)
+- **Tinder-style swipe cards** — drag with mouse/touch, buttons, or arrow keys, with LIKE / NOPE stamps
+- **Cat meme sound effects** — right swipe plays a happy kitty 🐱 (purrs included), left swipe plays a sad kiddy cat (toggle 🔊 in the header)
+- **Matches + real-time-ish chat** (polling) with your mutual likes
+- **"Liked u already" flag** — people who liked you surface first in the deck 😏
+- **Profile editing** — city, bio, avatar (emoji + gradient), vibes (up to 5)
+- **Admin panel** 🛡️ — live stats (users, cities, swipes, matches, messages), city leaderboard, full user table with search + delete
+- **Seeded demo frens** in 40 Indian cities so the deck is never empty (demo frens sometimes like you back so you can feel the match magic)
+
+## 🛡️ Admin account (pre-made)
+
+| | |
+|---|---|
+| **username** | `admin` |
+| **password** | `admin123` |
+| **email** | `admin@frfr.app` |
+
+Login with it and the **admin** tab appears in the bottom nav.
+
+## 🚀 Run it
+
+```bash
+node server.js
+# → http://localhost:3000
+```
+
+Zero npm dependencies. Node 18+ (built and tested on Node 22). Data is persisted to `data/db.json` (created & seeded on first run).
+
+## 🧱 Tech
+
+- **Backend:** plain Node.js `http` server — REST JSON API, scrypt-hashed passwords, bearer-token sessions, atomic JSON-file persistence (`data/db.json`)
+- **Frontend:** vanilla HTML/CSS/JS single-page app — pointer-event card physics, glassmorphism + neon gradients, bundled OFL fonts (Unbounded, Space Grotesk)
+- **Audio:** cat meme sounds in `public/audio/` — `happy.mp3` (happy kitty on right swipe) / `ohno.mp3` (kiddy cat on left swipe)
+
+## 📁 Structure
+
+```
+server.js            # API + static server + seed data (admin + demo frens)
+public/
+  index.html         # single-page shell
+  styles.css         # the gen-z core
+  app.js             # all views: auth, deck, chat, profile, admin
+  fonts/             # Unbounded + Space Grotesk (OFL licenses included)
+  audio/             # happy.mp3 (right swipe) · ohno.mp3 (left swipe)
+data/db.json         # runtime data (gitignored, auto-created)
+```
+
+## 📮 API quick reference
+
+| Method | Route | What |
+|---|---|---|
+| POST | `/api/signup` | create account |
+| POST | `/api/login` | login (username **or** email) |
+| GET | `/api/deck` | profiles from your city |
+| POST | `/api/swipe` | `{targetId, dir: right\|left}` → may return a match |
+| GET | `/api/matches` | your mutual likes |
+| GET/POST | `/api/matches/:id/messages` | chat |
+| GET | `/api/admin/stats` | admin dashboard data |
+| DELETE | `/api/admin/users/:id` | remove a user (admin) |
+
+> ⚠️ Built as a demo: for a real deployment serving minors you'd want proper moderation, reporting, privacy controls, and COPPA/GDPR-K style compliance. Be safe out there, besties.
