@@ -1300,6 +1300,33 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
 .hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
 
+/* v3.5: typing dots, read ticks, vibe badge, profile power */
+.typing-row { display: flex; justify-content: flex-start; margin: 6px 0 2px; }
+.typing-dots { display: inline-flex; gap: 4px; background: rgba(255,255,255,.09); border: 1px solid var(--line); padding: 9px 12px; border-radius: 16px 16px 16px 4px; }
+.typing-dots i { width: 6px; height: 6px; border-radius: 50%; background: #9a9ab0; animation: typBounce 1.1s infinite; }
+.typing-dots i:nth-child(2) { animation-delay: .15s; }
+.typing-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes typBounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+.read-tick { color: #3ddc63; font-size: 10px; letter-spacing: -.08em; }
+.read-tick.dim { color: var(--dim); opacity: .6; }
+.vibe-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(8px);
+  border: 1px solid rgba(61,220,99,.35); color: #3ddc63;
+  font-size: 11px; font-weight: 800; letter-spacing: .04em;
+  padding: 5px 10px; border-radius: 999px;
+}
+.pc-wrap { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.pc-top { display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); font-weight: 700; margin-bottom: 6px; }
+.pc-top b { color: var(--lime); }
+.pc-track { height: 7px; border-radius: 99px; background: rgba(0,0,0,.4); overflow: hidden; }
+.pc-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--lime), var(--cyan)); transition: width .6s ease; }
+.pc-tip { margin-top: 6px; font-size: 11.5px; color: var(--dim); }
+.pc-tip.done { color: #3ddc63; }
+.ban-btn { background: transparent; border: 1px solid rgba(255,90,120,.35); color: #ff7a94; border-radius: 8px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; font-weight: 700; }
+.ban-btn:hover { background: rgba(255,90,120,.12); }
+.ban-btn.un { border-color: rgba(61,220,99,.4); color: #3ddc63; }
+
 /* v3.4: online dots, icebreaker dice, peek danger row */
 .on-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
@@ -1336,5 +1363,6 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
   .lp-ring, .live-dot, .hud-chip.flame.lit, .hud-chip.quest.ready, .live-go, .tap-hint { animation: none !important; }
   .marquee span { animation: none !important; }
   .chat-dice:hover { transform: none; }
+  .pc-fill { transition: none; }
   .btn:hover { transform: none; filter: none; }
 }

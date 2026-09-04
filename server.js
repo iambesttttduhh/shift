@@ -609,6 +609,7 @@ addRoute('POST', '/api/login', {}, async (req, res, params, body) => {
   if (!user || !verifyPassword(body.password, user.passSalt, user.passHash)) {
     return bad(res, 'wrong username or password 🙅', 401);
   }
+  if (user.banned && user.role !== 'admin') return bad(res, 'ur account got banned 🚫 contact the admin if u think this is wrong', 403);
   bumpStreak(user);
   if (!user.emailVerified && user.role !== 'admin') {
     const since = (db.verifications || {})[user.id] ? (db.verifications[user.id].lastSent || 0) : 0;
@@ -923,6 +924,15 @@ addRoute('POST', '/api/report/:uid', { auth: true }, (req, res, params, body, us
   sendJson(res, 200, { ok: true });
 });
 
+addRoute('POST', '/api/admin/ban', { auth: true, admin: true }, (req, res, params, body, user) => {
+  const t = findUser(body.uid);
+  if (!t) return bad(res, 'no such user');
+  if (t.role === 'admin') return bad(res, 'cant ban an admin 💀');
+  t.banned = !!body.banned;
+  saveDb();
+  sendJson(res, 200, { ok: true, banned: t.banned });
+});
+
 addRoute('GET', '/api/admin/reports', { auth: true, admin: true }, (req, res) => {
   const list = (db.reports || []).slice(-50).reverse();
   sendJson(res, 200, { reports: list });
@@ -1174,6 +1184,24 @@ function getMatchIfParticipant(req, res, id, user) {
   return match;
 }
 
+addRoute('POST', '/api/matches/:id/typing', { auth: true }, (req, res, params, body, user) => {
+  const match = getMatchIfParticipant(req, res, params.id, user);
+  if (!match) return;
+  if (!match.typing) match.typing = {};
+  match.typing[user.id] = Date.now();
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
+addRoute('POST', '/api/matches/:id/read', { auth: true }, (req, res, params, body, user) => {
+  const match = getMatchIfParticipant(req, res, params.id, user);
+  if (!match) return;
+  if (!match.read) match.read = {};
+  match.read[user.id] = Date.now();
+  saveDb();
+  sendJson(res, 200, { ok: true });
+});
+
 addRoute('GET', '/api/matches/:id/messages', { auth: true }, (req, res, params, body, user) => {
   const match = getMatchIfParticipant(req, res, params.id, user);
   if (!match) return;
@@ -1183,7 +1211,10 @@ addRoute('GET', '/api/matches/:id/messages', { auth: true }, (req, res, params, 
     .filter(m => m.matchId === match.id)
     .slice(-200)
     .map(m => ({ id: m.id, text: m.text, at: m.at, fromMe: m.from === user.id }));
-  sendJson(res, 200, { messages: msgs, user: publicUser(other) });
+  const now = Date.now();
+  const otherTyping = !!(match.typing && match.typing[other.id] && now - match.typing[other.id] < 3500);
+  const otherReadAt = (match.read && match.read[other.id]) || 0;
+  sendJson(res, 200, { messages: msgs, user: publicUser(other), otherTyping, otherReadAt });
 });
 
 addRoute('POST', '/api/matches/:id/messages', { auth: true }, (req, res, params, body, user) => {
@@ -1376,7 +1407,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 34; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 35; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1458,6 +1489,7 @@ const server = http.createServer(async (req, res) => {
       if (r.opts.auth) {
         user = authUser(req);
         if (!user) return bad(res, 'login first bestie 🙅', 401);
+        if (user.banned && user.role !== 'admin') return bad(res, 'ur account got banned 🚫 contact the admin if u think this is wrong', 403);
         bumpStreak(user);
   if (!user.emailVerified && user.role !== 'admin') {
           return sendJson(res, 403, { error: 'verify ur email first 📬 check ur inbox', code: 'UNVERIFIED' });
@@ -1482,7 +1514,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 34; // keep in sync with public/latest.json
+const APP_VERSION = 35; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1542,8 +1574,8 @@ async function checkForUpdates() {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.4  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.4)');
+  console.log('  ✦✦✦  frfr build v3.5  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.5)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });

@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.4';
+const APP_VER = '3.5';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
@@ -269,7 +269,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.4 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.5 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -924,6 +924,15 @@ async function loadFeedPage() {
   }
 }
 
+function vibeScore(u) {
+  const me = state.user || {};
+  const shared = (u.vibes || []).filter(v => (me.vibes || []).includes(v)).length;
+  let s = shared * 22 + (String(u.city).toLowerCase() === String(me.city).toLowerCase() ? 26 : 0) + (isOnline(u) ? 10 : 0);
+  const ag = Math.abs((u.age || 0) - (me.age || 0));
+  s += ag <= 1 ? 14 : ag <= 3 ? 7 : 0;
+  return Math.max(35, Math.min(99, Math.round(s)));
+}
+
 function feedCardHtml(u, idx = 0) {
   const m = state.meta;
   const vibes = (u.vibes || []).map(id => {
@@ -948,6 +957,7 @@ function feedCardHtml(u, idx = 0) {
         <button class="gal-btn gal-next" title="next pic">›</button>
         <div class="gal-dots">${photos.map((_, di) => `<span class="${di === 0 ? 'on' : ''}"></span>`).join('')}</div>` : ''}
       ${u._likesYou ? '<div class="liked-me-flag">💌 wants to be ur fren</div>' : ''}
+      <div class="vibe-badge">💚 ${vibeScore(u)}% vibe</div>
       ${idx === 0 ? '<div class="tap-hint">👆 double-tap to send a fren request</div>' : ''}
       <div class="stamp like">FREN REQ 💌</div>
     </div>
@@ -1163,28 +1173,41 @@ async function openChat(matchId, otherUser) {
   };
 
   const scroll = $('#chat-scroll');
+  let otherReadAt = 0;
   const renderMsgs = (msgs) => {
     scroll.innerHTML = msgs.length ? msgs.map(m => `
       <div class="bubble ${m.fromMe ? 'mine' : 'theirs'}">${esc(m.text)}
-        <div class="bubble-time">${clockTime(m.at)}</div>
-      </div>`).join('') : `<div class="empty-deck" style="padding:40px 10px"><div class="big">👋</div><h3 style="font-size:16px">say hi to ${esc(otherUser.name)}</h3><p>matching was step 1, yapping is step 2</p></div>`;
+        <div class="bubble-time">${clockTime(m.at)}${m.fromMe && m.at <= otherReadAt ? ' <span class="read-tick">✓✓</span>' : (m.fromMe ? ' <span class="read-tick dim">✓</span>' : '')}</div>
+      </div>`).join('') + (arguments[1] ? '<div class="typing-row"><span class="typing-dots"><i></i><i></i><i></i></span></div>' : '')
+      : `<div class="empty-deck" style="padding:40px 10px"><div class="big">👋</div><h3 style="font-size:16px">say hi to ${esc(otherUser.name)}</h3><p>matching was step 1, yapping is step 2 · try the 🎲</p></div>`;
     scroll.scrollTop = scroll.scrollHeight;
   };
 
   let lastIds = new Set();
   const poll = async () => {
+    if (document.hidden) return; // save battery when tab not visible
     try {
       const r = await api(`/api/matches/${encodeURIComponent(matchId)}/messages`);
+      otherReadAt = r.otherReadAt || 0;
       const fresh = r.messages.some(m => !lastIds.has(m.id));
-      if (fresh || !scroll.dataset.loaded) {
-        renderMsgs(r.messages);
+      if (fresh || !scroll.dataset.loaded || !!r.otherTyping !== !!scroll.dataset.typing) {
+        renderMsgs(r.messages, r.otherTyping);
         r.messages.forEach(m => lastIds.add(m.id));
         scroll.dataset.loaded = '1';
+        scroll.dataset.typing = r.otherTyping ? '1' : '';
       }
+      api(`/api/matches/${encodeURIComponent(matchId)}/read`, { method: 'POST', body: {} }).catch(() => {});
     } catch {}
   };
   await poll();
   state.chatTimer = setInterval(poll, 2200);
+  let lastTypingSent = 0;
+  $('#chat-text').addEventListener('input', () => {
+    const now = Date.now();
+    if (now - lastTypingSent < 1500) return;
+    lastTypingSent = now;
+    api(`/api/matches/${encodeURIComponent(matchId)}/typing`, { method: 'POST', body: {} }).catch(() => {});
+  });
 
   $('#chat-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -1309,8 +1332,8 @@ function openProfilePeek(u) {
   const shared = (u.vibes || []).filter(v => (state.user.vibes || []).includes(v));
   const ov = overlayCard(`
     <div class="match-card peek">
-      <div class="peek-media" style="background:${gradCss(m, u.avatar.grad)}">
-        ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+      <div class="peek-media" style="background:${gradCss(m, (u.avatar || {}).grad)}">
+        ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="card-emoji">${esc((u.avatar || {}).emoji || '😎')}</span>`}
         <button class="peek-x">✕</button>
       </div>
       <div class="peek-body">
@@ -1423,8 +1446,8 @@ async function loadVibeCheck() {
     const u = r.person;
     const shared = r.sharedVibes || [];
     stage.innerHTML = `
-      <div class="vc-card" style="background:${gradCss(state.meta, u.avatar.grad)}">
-        ${u.photos && u.photos[0] ? `<img class="feed-photo" src="${u.photos[0]}" alt="">` : `<span class="card-emoji">${esc(u.avatar.emoji)}</span>`}
+      <div class="vc-card" style="background:${gradCss(state.meta, (u.avatar || {}).grad)}">
+        ${u.photos && u.photos[0] ? `<img class="feed-photo" src="${u.photos[0]}" alt="">` : `<span class="card-emoji">${esc((u.avatar || {}).emoji || '😎')}</span>`}
         <div class="vc-info">
           <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
           <div class="card-loc">📍 ${esc(u.city)} · @${esc(u.username)}</div>
@@ -1714,6 +1737,14 @@ function renderProfile() {
         ${u.photo ? `<img class="card-photo" src="${u.photo}" alt="">` : `<span class="card-emoji" id="me-emoji">${esc(u.avatar.emoji)}</span>`}
       </div>
       <div class="me-card-body">
+        ${(() => {
+          const tips = [];
+          let pct = 20;
+          if (u.photo) pct += 30; else tips.push('add a profile pic 📷');
+          if (u.bio && u.bio.length > 10) pct += 25; else tips.push('write a bio ✍️');
+          if ((u.vibes || []).length >= 3) pct += 25; else tips.push('pick at least 3 vibes ✨');
+          return `<div class="pc-wrap"><div class="pc-top"><span>profile power</span><b>${pct}%</b></div><div class="pc-track"><div class="pc-fill" style="width:${pct}%"></div></div>${tips.length ? `<div class="pc-tip">level up: ${tips.join(' · ')}</div>` : '<div class="pc-tip done">full power 💯 u did it</div>'}</div>`;
+        })()}
         <div class="card-name">${esc(u.name)} <span class="age">${u.age}</span></div>
         <div class="card-loc">@${esc(u.username)} · 📍 ${esc(u.city)} · ${esc(u.gender)}</div>
         ${u.bio ? `<p class="card-bio">${esc(u.bio)}</p>` : ''}
@@ -1899,18 +1930,28 @@ async function renderAdmin() {
           <td>@${esc(u.username)}</td>
           <td>${esc(u.city)}</td>
           <td>${u.age}</td>
-          <td><span class="tag ${u.isBot ? 'demo' : 'real'}">${u.isBot ? 'demo' : 'real'}</span></td>
+          <td><span class="tag ${u.isBot ? 'demo' : 'real'}">${u.isBot ? 'demo' : 'real'}</span>${u.banned ? ' <span class="tag demo">🚫 banned</span>' : ''}</td>
           <td>${u.reqs}</td>
           <td>${u.matches}</td>
           <td>${u.msgs}</td>
           <td>${timeAgo(u.createdAt)}</td>
-          <td style="white-space:nowrap"><button class="edit-btn" data-id="${esc(u.id)}">✏️ edit</button> <button class="del-btn" data-id="${esc(u.id)}" data-name="${esc(u.name)}">delete</button></td>
+          <td style="white-space:nowrap"><button class="edit-btn" data-id="${esc(u.id)}">✏️ edit</button> <button class="ban-btn ${u.banned ? 'un' : ''}" data-id="${esc(u.id)}" data-b="${u.banned ? '1' : ''}">${u.banned ? '✅ unban' : '🚫 ban'}</button> <button class="del-btn" data-id="${esc(u.id)}" data-name="${esc(u.name)}">delete</button></td>
         </tr>`).join('') || `<tr><td colspan="10" class="muted-dim" style="text-align:center;padding:24px">no users match "${esc(t)}"</td></tr>`;
       $$('#admin-rows .edit-btn').forEach(b => b.onclick = () => {
         const u = adminRows.find(x => x.id === b.dataset.id);
         if (u) editUserModal(u);
       });
       $$('#admin-rows .del-btn').forEach(b => b.onclick = () => deleteUser(b.dataset.id, b.dataset.name));
+      $$('#admin-rows .ban-btn').forEach(b => b.onclick = async () => {
+        const banned = b.dataset.b === '1';
+        try {
+          await api('/api/admin/ban', { method: 'POST', body: { uid: b.dataset.id, banned: !banned } });
+          const row = adminRows.find(x => x.id === b.dataset.id);
+          if (row) row.banned = !banned;
+          drawRows($('#admin-q') ? $('#admin-q').value : '');
+          toast(!banned ? 'user banned 🚫' : 'user unbanned ✅', 'good');
+        } catch (e) { toast(e.message, 'bad'); }
+      });
     };
     drawRows('');
     $('#admin-q').oninput = (e) => drawRows(e.target.value);
