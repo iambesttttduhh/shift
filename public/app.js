@@ -39,7 +39,7 @@ const state = {
   matchesCount: 0,
   deck: [],
   swiping: false,
-  view: 'deck',          // deck | matches | profile | admin
+  view: 'feed',           // feed | matches | requests | explore | profile | admin
   activeMatch: null,     // match object when in chat
   chatTimer: null,
   muted: localStorage.getItem('frfr_muted') === '1',
