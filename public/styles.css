@@ -1238,3 +1238,69 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 }
 @keyframes lpPulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.75); } }
 .nav-btn.big .big-label { font-size: 9.5px; font-weight: 900; letter-spacing: .08em; margin-top: 1px; }
+
+/* ====================================================
+   v2.6 — engagement layer: HUD, streaks, xp, quests
+   ==================================================== */
+.hud {
+  position: sticky; top: 57px; z-index: 35;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  max-width: 700px; margin: 0 auto; padding: 8px 16px 4px;
+}
+.hud:empty { display: none; }
+.hud-left { display: flex; align-items: center; gap: 7px; }
+.hud-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 800;
+  padding: 7px 12px; border-radius: 999px;
+  background: rgba(20,20,30,.85); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(12px);
+  color: var(--ink);
+  transition: transform .15s;
+}
+.hud-chip:active { transform: scale(.94); }
+.hud-chip.flame.lit { border-color: rgba(255,138,5,.5); box-shadow: 0 0 16px rgba(255,138,5,.25); animation: flameFlicker 1.8s ease-in-out infinite; }
+@keyframes flameFlicker { 0%,100% { box-shadow: 0 0 12px rgba(255,138,5,.2); } 50% { box-shadow: 0 0 20px rgba(255,138,5,.45); } }
+.hud-chip.lvl b { color: var(--cyan); }
+.hud-xp {
+  width: 64px; height: 7px; border-radius: 999px; overflow: hidden;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
+}
+.hud-xp i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--purple)); border-radius: 999px; transition: width .5s ease; }
+.hud-chip.quest { color: var(--dim); font-weight: 700; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-chip.quest.ready {
+  background: linear-gradient(100deg, var(--lime), var(--cyan)); color: #000; border: none;
+  animation: questGlow 1.6s ease-in-out infinite; font-weight: 900;
+}
+@keyframes questGlow { 0%,100% { box-shadow: 0 0 14px rgba(204,255,51,.35); } 50% { box-shadow: 0 0 26px rgba(204,255,51,.6); } }
+.hud-chip.quest.claimed { opacity: .55; }
+
+/* xp floaties */
+.xp-float {
+  position: fixed; z-index: 145; pointer-events: none;
+  font-family: var(--font-display); font-weight: 900; font-size: 19px;
+  color: var(--cyan); text-shadow: 0 0 18px rgba(94,234,212,.8), 0 2px 8px rgba(0,0,0,.6);
+  animation: xpRise 1.5s cubic-bezier(.2,.9,.3,1) forwards;
+  transform: translate(-50%, -50%);
+}
+@keyframes xpRise {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.5); }
+  20% { opacity: 1; transform: translate(-50%,-70%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%,-190%) scale(1); }
+}
+
+/* level up blast emoji */
+.lvl-blast { font-size: 64px; animation: bob 1.6s ease-in-out infinite; }
+
+/* rail button pop on send */
+.rail-btn.pop { animation: railPop .4s cubic-bezier(.2,1.6,.4,1); }
+@keyframes railPop { 0% { transform: scale(1); } 40% { transform: scale(1.35) rotate(8deg); } 100% { transform: scale(1); } }
+
+/* quest chip pulses when claimable — done above; add shine on hud level-up */
+@keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
+.hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
+
+/* reduce motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .lp-ring, .live-dot, .hud-chip.flame.lit, .hud-chip.quest.ready, .live-go, .tap-hint { animation: none !important; }
+}

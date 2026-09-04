@@ -46,7 +46,8 @@ const state = {
   pending: null,   // { token, email, name, mailMode, devCode } during email verification
   reqCount: 0,     // pending incoming friend requests
   feed: { items: [], page: 0, done: false, loading: false },
-  feedFilter: { scope: 'city', city: '', vibes: [] }   // vibes = AND-match interests
+  feedFilter: { scope: 'city', city: '', vibes: [] },  // vibes = AND-match interests
+  engage: { streak: null, xp: 0, level: 1, xpNext: 50, quest: null }
 };
 
 /* cat reaction animations (happy 😸 on like/accept · sad 😿 on reject) */
@@ -230,7 +231,7 @@ function renderLanding() {
       </div>
     </div>
         <div class="marquee"><span>make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;make frens in ur city ★ swipe right ★ it's a match ★ no cap ★ vibe check passed ★ fr fr ★ lowkey iconic ★ bestie behaviour ★&nbsp;</span></div>
-        <div class="ver-tag">v2.5 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v2.6 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -460,8 +461,70 @@ async function loadMe() {
     state.likesReceived = r.likesReceived;
     state.matchesCount = r.matches;
     state.reqCount = r.reqCount || 0;
+    state.engage = {
+      streak: r.streak || { count: 0, last: null, best: 0 },
+      xp: r.xp || 0, level: r.level || 1, xpNext: r.xpNext || 50,
+      quest: r.quest || null
+    };
   } catch (e) { /* handled in api() */ }
   updateReqBadge();
+  renderHud();
+}
+
+/* ---- persistent HUD: streak flame + level ring (top of every view) ---- */
+function renderHud() {
+  let hud = $('#hud');
+  if (!hud || !state.user) return;
+  const g = state.engage;
+  const lvlBase = 50 * ((g.level || 1) - 1) * ((g.level || 1) - 1);
+  const pct = Math.min(100, Math.round(((g.xp - lvlBase) / Math.max(1, g.xpNext - lvlBase)) * 100));
+  const q = g.quest;
+  hud.innerHTML = `
+    <div class="hud-left">
+      <span class="hud-chip flame ${g.streak && g.streak.count > 0 ? 'lit' : ''}" id="hud-streak" title="daily streak — come back tomorrow to keep it!">🔥 <b>${g.streak ? g.streak.count : 0}</b></span>
+      <span class="hud-chip lvl">⚡ Lv <b>${g.level}</b></span>
+      <div class="hud-xp"><i style="width:${pct}%"></i></div>
+    </div>
+    ${q ? `<button class="hud-chip quest ${q.done ? (q.claimed ? 'claimed' : 'ready') : ''}" id="hud-quest" title="daily quest">
+      ${q.done ? (q.claimed ? '✅ done' : '🎁 claim +' + (q.xp || 40) + ' xp') : (q.emoji || '🎯') + ' ' + esc(q.label) + ' (' + (q.progress || 0) + '/' + q.target + ')'}
+    </button>` : ''}`;
+  const qb = $('#hud-quest');
+  if (qb) qb.onclick = async () => {
+    if (!state.engage.quest || !state.engage.quest.done || state.engage.quest.claimed) {
+      toast(state.engage.quest && state.engage.quest.claimed ? 'already claimed 🫡' : 'finish the quest first 👀');
+      return;
+    }
+    try {
+      const r = await api('/api/quest/claim', { method: 'POST', body: {} });
+      toast('+' + r.xpGain + ' xp claimed 🎉', 'good');
+      if (r.leveledUp) levelUpBlast(r.leveledUp);
+      await loadMe();
+    } catch (x) { toast(x.message, 'bad'); }
+  };
+}
+
+function xpFloat(amount, x, y) {
+  const el = document.createElement('div');
+  el.className = 'xp-float';
+  el.textContent = '+' + amount + ' xp';
+  el.style.left = (typeof x === 'number' ? x : window.innerWidth / 2) + 'px';
+  el.style.top = (typeof y === 'number' ? y : window.innerHeight * 0.4) + 'px';
+  fx.appendChild(el);
+  el.addEventListener('animationend', () => el.remove(), { once: true });
+  setTimeout(() => el.remove(), 1600);
+}
+
+function levelUpBlast(level) {
+  const ov = overlayCard(`
+    <div class="match-card" style="max-width:340px">
+      <div class="lvl-blast">⚡</div>
+      <div class="match-title" style="font-size:32px">LEVEL ${level}!</div>
+      <p class="match-sub">ur vibe is evolving fr 📈 keep going!</p>
+      <div class="match-actions"><button class="btn btn-primary btn-block" id="lv-ok">let's gooo</button></div>
+    </div>`);
+  confetti(90);
+  catAnimation('happy');
+  $('#lv-ok', ov).onclick = () => ov.remove();
 }
 
 function updateReqBadge() {
@@ -488,6 +551,7 @@ function renderShell() {
       <button class="icon-btn ${state.muted ? 'off' : ''}" id="mute-btn" title="cat animations on/off">😸</button>
       <button class="icon-btn" id="logout-btn" title="settings / logout">⚙</button>
     </div></header>
+    <div class="hud" id="hud"></div>
     <main class="app-col" id="view-root"></main>
     <nav class="bottom-nav"><div class="bottom-nav-in" id="nav"></div></nav>
   `;
@@ -811,6 +875,7 @@ function wireFeedCards(items) {
   items.forEach(u => {
     const card = $('.feed-card[data-id="' + CSS.escape(u.id) + '"]');
     if (!card) return;
+
     const photos = u.photos || [];
 
     const showPic = (n) => {
@@ -857,6 +922,9 @@ async function sendFriendRequest(targetId, btn) {
     const r = await api('/api/request', { method: 'POST', body: { targetId } });
     if (r.status === 'mutual') {
       confetti(70);
+      if (typeof r.xpGain === 'number') xpFloat(r.xpGain);
+      loadMe();
+      if (r.leveledUp) levelUpBlast(r.leveledUp);
       state.matchesCount++;
       if (card) {
         card.style.transition = 'transform .45s, opacity .45s';
@@ -868,6 +936,9 @@ async function sendFriendRequest(targetId, btn) {
     } else if (r.status === 'sent') {
       toast('friend request sent 💌');
       catAnimation('happy');
+      if (railBtn) { railBtn.classList.add('pop'); setTimeout(() => railBtn.classList.remove('pop'), 400); }
+      if (typeof r.xpGain === 'number') { xpFloat(r.xpGain); loadMe(); }
+      if (r.leveledUp) levelUpBlast(r.leveledUp);
       state.likesReceived++;
       if (railBtn) { railBtn.classList.remove('like', 'likesyou'); railBtn.classList.add('pending'); railBtn.textContent = '⏳'; }
       const stamp = card && $('.stamp.like', card);
@@ -1027,6 +1098,8 @@ async function openChat(matchId, otherUser) {
     input.value = '';
     try {
       const r = await api(`/api/matches/${encodeURIComponent(matchId)}/messages`, { method: 'POST', body: { text } });
+      if (typeof r.xpGain === 'number') xpFloat(r.xpGain);
+      if (r.leveledUp) levelUpBlast(r.leveledUp);
       if (!lastIds.has(r.message.id)) {
         lastIds.add(r.message.id);
         const empty = $('.empty-deck', scroll);
@@ -1314,6 +1387,9 @@ async function startQuickMatch(intent, onDone) {
       state.matchesCount++;
       confetti(70);
       catAnimation('happy');
+      if (typeof r.xpGain === 'number') xpFloat(r.xpGain);
+      loadMe();
+      if (r.leveledUp) levelUpBlast(r.leveledUp);
       stage.innerHTML = `
         <div class="live-match-card">
           <div class="lmc-avatars">

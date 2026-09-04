@@ -346,6 +346,7 @@ function loadDb() {
     if (u.emailVerified === undefined) { u.emailVerified = true; migrated++; }
     if (!Array.isArray(u.photos)) u.photos = u.photo ? [u.photo] : []; // v1.8: photo galleries
     if (!u.emailKey) { u.emailKey = normalizeEmailKey(u.email); migrated++; } // v1.10: mailbox key
+    if (u.xp === undefined) { u.xp = 0; u.level = 1; u.streak = { count: 0, last: null, best: 0 }; }
     if (u.isBot && !(u.photos && u.photos.length)) { // v2.2: portraits for demo frens
       u.photos = botPhotos(u.gender, u.username);
       if (!u.photo) u.photo = u.photos[0];
@@ -588,6 +589,9 @@ addRoute('POST', '/api/signup', {}, async (req, res, params, body) => {
   if (body.photo) { user.photo = body.photo; user.photos = [body.photo]; }
   user.emailVerified = false;
   user.emailKey = emailKey;
+  user.xp = 0; user.level = 1;
+  bumpStreak(user);
+  dailyQuest(user);
   db.users.push(user);
   saveDb();
   const v = await issueVerification(user);
@@ -603,6 +607,7 @@ addRoute('POST', '/api/login', {}, async (req, res, params, body) => {
   if (!user || !verifyPassword(body.password, user.passSalt, user.passHash)) {
     return bad(res, 'wrong username or password 🙅', 401);
   }
+  bumpStreak(user);
   if (!user.emailVerified && user.role !== 'admin') {
     const since = (db.verifications || {})[user.id] ? (db.verifications[user.id].lastSent || 0) : 0;
     if (Date.now() - since > VERIF_COOLDOWN || !db.verifications[user.id]) {
@@ -630,6 +635,17 @@ addRoute('POST', '/api/logout', { auth: true }, (req, res, params, body, user, e
   delete db.sessions[extra.token];
   saveDb();
   sendJson(res, 200, { ok: true });
+});
+
+addRoute('POST', '/api/quest/claim', { auth: true }, (req, res, params, body, user) => {
+  dailyQuest(user);
+  const q = user.quest;
+  if (!q.done) return bad(res, 'quest not finished yet 👀');
+  if (q.claimed) return bad(res, 'already claimed this one 🫡');
+  q.claimed = true;
+  const up = addXp(user, q.xp || 40, 'quest complete');
+  saveDb();
+  sendJson(res, 200, { ok: true, xpGain: q.xp || 40, level: user.level || 1, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1), leveledUp: up ? up.leveledUp : null });
 });
 
 addRoute('POST', '/api/verify', {}, (req, res, params, body) => {
@@ -660,12 +676,66 @@ addRoute('POST', '/api/verify/resend', {}, async (req, res, params, body) => {
 });
 
 /* --------------------------------------------------------------- api: user */
+/* ---- engagement: streaks, xp, daily quest ---- */
+function dayKey(t) { return new Date(t || Date.now()).toISOString().slice(0, 10); }
+function bumpStreak(user) {
+  const today = dayKey();
+  const yest = dayKey(Date.now() - 86400000);
+  user.streak = user.streak || { count: 0, last: null, best: 0 };
+  if (user.streak.last === today) return; // already today
+  user.streak.count = user.streak.last === yest ? user.streak.count + 1 : 1;
+  user.streak.last = today;
+  user.streak.best = Math.max(user.streak.best || 0, user.streak.count);
+}
+function addXp(user, amount, reason) {
+  user.xp = (user.xp || 0) + amount;
+  const lvl = lvlOf(user.xp);
+  if (lvl > (user.level || 1)) {
+    user.level = lvl;
+    return { leveledUp: lvl, reason };
+  }
+  return null;
+}
+function lvlOf(xp) { return Math.max(1, Math.floor(Math.sqrt((xp || 0) / 50)) + 1); }
+function xpForLevel(l) { return 50 * (l - 1) * (l - 1); }
+
 addRoute('GET', '/api/me', { auth: true }, (req, res, params, body, user) => {
   const likes = db.requests.filter(r => r.to === user.id && (r.status === 'pending' || r.status === 'accepted')).length;
   const reqCount = db.requests.filter(r => r.to === user.id && r.status === 'pending').length;
   const myMatches = db.matches.filter(m => m.a === user.id || m.b === user.id).length;
-  sendJson(res, 200, { user: publicUser(user, { withEmail: true }), likesReceived: likes, matches: myMatches, reqCount });
+  // streak + quest state (no side effects on GET besides keeping today's streak warm)
+  if (user.streak && user.streak.last === dayKey()) { /* warm */ }
+  const quest = dailyQuest(user);
+  sendJson(res, 200, {
+    user: publicUser(user, { withEmail: true }), likesReceived: likes, matches: myMatches, reqCount,
+    streak: user.streak || { count: 0, last: null, best: 0 },
+    xp: user.xp || 0, level: user.level || 1, xpNext: xpForLevel((user.level || 1) + 1),
+    quest: quest.state
+  });
 });
+
+function dailyQuest(user) {
+  const q = user.quest || {};
+  if (q.day !== dayKey()) {
+    // fresh day: regenerate quest
+    const quests = [
+      { id: 'like3', label: 'double-tap 3 profiles', target: 3, xp: 40, kind: 'likes' },
+      { id: 'chat1', label: 'send 1 message to a fren', target: 1, xp: 60, kind: 'msgs' },
+      { id: 'pic1', label: 'add a profile pic', target: 1, xp: 50, kind: 'pics' }
+    ];
+    user.quest = { day: dayKey(), ...quests[Math.floor(Math.random() * quests.length)], progress: 0, done: false, claimed: false };
+  }
+  return { state: user.quest };
+}
+function questProgress(user, kind, n = 1) {
+  dailyQuest(user);
+  const q = user.quest;
+  if (q.kind === kind && !q.done) {
+    q.progress = Math.min(q.target, (q.progress || 0) + n);
+    if (q.progress >= q.target) { q.done = true; }
+    saveDb();
+  }
+}
 
 addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
   if (body.name !== undefined) {
@@ -844,8 +914,10 @@ addRoute('POST', '/api/request', { auth: true }, (req, res, params, body, user) 
     saveDb();
     return sendJson(res, 200, { status: 'mutual', match: { id: match.id, user: publicUser(target) } });
   }
+  questProgress(user, 'likes');
+  const up = addXp(user, 10, 'sent a fren request');
   saveDb();
-  sendJson(res, 200, { status: 'sent' });
+  sendJson(res, 200, { status: 'sent', xpGain: 10, level: user.level || 1, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1), leveledUp: up ? up.leveledUp : null });
 });
 
 addRoute('GET', '/api/nearby', { auth: true }, (req, res, params, body, user) => {
@@ -936,7 +1008,10 @@ addRoute('POST', '/api/lobby/join', { auth: true }, async (req, res, params, bod
       saveDb();
     }
     db.lobbies = (db.lobbies || []).filter(l => l.userId !== user.id);
-    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner) });
+    bumpStreak(user);
+    const up = addXp(user, 20, 'quick match');
+    saveDb();
+    return sendJson(res, 200, { status: 'matched', partner: publicUser(partner), xpGain: 20, leveledUp: up ? up.leveledUp : null, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1) });
   }
   // check real humans waiting
   const match = findLobbyMatch(user, intent);
@@ -999,6 +1074,9 @@ addRoute('POST', '/api/requests/:id/accept', { auth: true }, (req, res, params, 
     match = { id: uid('m'), pair: pairKey(r.from, r.to), a: r.from, b: r.to, at: Date.now() };
     db.matches.push(match);
   }
+  bumpStreak(user); bumpStreak(findUser(r.from) || user);
+  addXp(user, 15, 'made a fren');
+  addXp(findUser(r.from) || user, 15, 'made a fren');
   saveDb();
   sendJson(res, 200, { ok: true, match: { id: match.id, user: publicUser(findUser(r.from)) } });
 });
@@ -1061,8 +1139,10 @@ addRoute('POST', '/api/matches/:id/messages', { auth: true }, (req, res, params,
   if (!text) return bad(res, 'say something 🗣️');
   const msg = { id: uid('msg'), matchId: match.id, from: user.id, text, at: Date.now() };
   db.messages.push(msg);
+  questProgress(user, 'msgs');
+  const up = addXp(user, 5, 'yapped');
   saveDb();
-  sendJson(res, 200, { message: { id: msg.id, text: msg.text, at: msg.at, fromMe: true } });
+  sendJson(res, 200, { message: { id: msg.id, text: msg.text, at: msg.at, fromMe: true }, xpGain: 5, leveledUp: up ? up.leveledUp : null, xpTotal: user.xp || 0, xpNext: xpForLevel((user.level || 1) + 1) });
 });
 
 /* ------------------------------------------------------------- api: admin */
@@ -1313,7 +1393,8 @@ const server = http.createServer(async (req, res) => {
       if (r.opts.auth) {
         user = authUser(req);
         if (!user) return bad(res, 'login first bestie 🙅', 401);
-        if (!user.emailVerified && user.role !== 'admin') {
+        bumpStreak(user);
+  if (!user.emailVerified && user.role !== 'admin') {
           return sendJson(res, 403, { error: 'verify ur email first 📬 check ur inbox', code: 'UNVERIFIED' });
         }
         const now = Date.now();
@@ -1336,7 +1417,7 @@ const server = http.createServer(async (req, res) => {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v2.5  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v2.5)');
+  console.log('  ✦✦✦  frfr build v2.6  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v2.6)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
 });
