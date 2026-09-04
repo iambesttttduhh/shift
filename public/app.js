@@ -217,7 +217,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.2';
+const APP_VER = '3.3';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 let authTab = 'login';
 let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form draft (avatar/vibes/photo picks)
@@ -243,10 +243,9 @@ function renderLanding() {
       </div>
     </div>
         <div class="tickers">
-          <div class="marquee m1"><span>double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍 double-tap to match ⚡ ur for-u feed 💌 frens fr 💜 no cap 🚫🧢 vibe check passed ✅ lowkey iconic 💅 bestie behaviour 💯 make frens in ur city 📍</span></div>
-          <div class="marquee m2"><span>yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍 yapping zone 🗣️ fresh frens daily 🌞 real ones only 🫵 fr fr no cap 💜 match match match ⚡ send that request 💌 ur city ur ppl 📍</span></div>
+          <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.2 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.3 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -637,6 +636,7 @@ function openSettingsMenu() {
         <button class="btn btn-primary btn-block" id="st-profile">😎 my profile</button>
         <button class="btn btn-ghost btn-block" id="st-explore">🧭 explore</button>
         <button class="btn btn-ghost btn-block" id="st-sound">${state.muted ? '😸 cat animations: off' : '😸 cat animations: on'}</button>
+        <button class="btn btn-primary btn-block" id="st-invite">🚀 invite frens — copy link</button>
         <button class="btn btn-pink btn-block" id="st-logout">🚪 log out</button>
         <button class="btn btn-ghost btn-block" id="st-close">close</button>
       </div>
@@ -649,6 +649,11 @@ function openSettingsMenu() {
     const mb = $('#mute-btn'); if (mb) mb.classList.toggle('off', state.muted);
     ov.remove();
     toast(state.muted ? 'cat animations off 🚫🐱' : 'cat animations on 🐱');
+  };
+  $('#st-invite', ov).onclick = async () => {
+    const link = 'https://cdn.statically.io/gh/iambesttttduhh/shift/arena/01a06b20-shift/download.html';
+    try { await navigator.clipboard.writeText(link); toast('link copied — send it to ur gang 🚀', 'good'); }
+    catch (e) { ov.remove(); prompt('copy this link and send it 🚀', link); }
   };
   $('#st-logout', ov).onclick = () => {
     ov.innerHTML = `

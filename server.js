@@ -752,13 +752,14 @@ addRoute('PUT', '/api/me', { auth: true }, (req, res, params, body, user) => {
   }
   if (body.photo !== undefined) {
     if (body.photo === null) { delete user.photo; user.photos = []; }
-    else if (validPhoto(body.photo)) { user.photo = body.photo; if (!(user.photos || []).includes(body.photo)) { user.photos = [body.photo, ...(user.photos || [])].slice(0, 3); } }
+    else if (validPhoto(body.photo)) { user.photo = body.photo; if (!(user.photos || []).includes(body.photo)) { user.photos = [body.photo, ...(user.photos || [])].slice(0, 3); questProgress(user, 'pics'); } }
     else return bad(res, 'pic too big or not an image 💀 (max ~300KB)');
   }
   if (body.photos !== undefined) {
     if (!Array.isArray(body.photos)) return bad(res, 'bad photos list');
     const arr = body.photos.filter(validPhoto).slice(0, 3);
     if (arr.length !== body.photos.length) return bad(res, 'pic too big or not an image 💀 (max ~300KB)');
+    if (arr.length > (user.photos || []).length) questProgress(user, 'pics');
     user.photos = arr;
     if (arr[0]) user.photo = arr[0]; else delete user.photo;
   }
@@ -1326,7 +1327,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 31; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 33; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1432,7 +1433,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 32; // keep in sync with public/latest.json
+const APP_VERSION = 33; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1492,8 +1493,8 @@ async function checkForUpdates() {
 loadDb();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.2  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.2)');
+  console.log('  ✦✦✦  frfr build v3.3  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.3)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });
