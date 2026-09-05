@@ -367,6 +367,56 @@ function saveDbNow() {
     fs.writeFileSync(tmp, JSON.stringify(db));
     fs.renameSync(tmp, DB_PATH);
   } catch (e) { console.error('[frfr] save failed', e.message); }
+  cloudSync(); // v3.10: keep cloud copy fresh (hosted mode)
+}
+
+/* ---------------- cloud backup (v3.10, free tier: Upstash Redis REST) ---------------- */
+const CLOUD_URL = (process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REST_URL || '').replace(/\/$/, '');
+const CLOUD_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REST_TOKEN || '';
+let cloudTimer = null, cloudBusy = false, cloudDirty = false;
+
+async function cloudPush() {
+  if (!CLOUD_URL || cloudBusy) { if (cloudBusy) cloudDirty = true; return; }
+  cloudBusy = true;
+  try {
+    const b64 = Buffer.from(JSON.stringify(db)).toString('base64');
+    // pipeline w/ JSON body (big values must not ride in the URL — header size limits)
+    const r = await fetch(CLOUD_URL + '/pipeline', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + CLOUD_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify([{ command: ['set', 'frfr:db', b64] }]),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!r.ok) console.error('[frfr] cloud sync failed:', r.status);
+  } catch (e) { console.error('[frfr] cloud sync failed:', e.message); }
+  cloudBusy = false;
+  if (cloudDirty) { cloudDirty = false; cloudSync(); }
+}
+function cloudSync() {
+  if (!CLOUD_URL) return;
+  if (cloudTimer) return;
+  cloudTimer = setTimeout(() => { cloudTimer = null; cloudPush(); }, 3000);
+}
+
+async function cloudRestore() {
+  if (!CLOUD_URL) return;
+  try {
+    const r = await fetch(CLOUD_URL + '/pipeline', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + CLOUD_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify([{ command: ['get', 'frfr:db'] }]),
+      signal: AbortSignal.timeout(20000)
+    });
+    const j = await r.json();
+    const result = Array.isArray(j) ? j[0] && j[0].result : j.result;
+    if (!result) { console.log('[frfr] cloud: no backup yet (first boot) — this boot becomes the backup'); return; }
+    const data = JSON.parse(Buffer.from(result, 'base64').toString('utf8'));
+    if (data && Array.isArray(data.users) && data.users.length) {
+      db = data;
+      saveDbNow();
+      console.log('[frfr] cloud: restored', db.users.length, 'users from backup ☁️');
+    }
+  } catch (e) { console.error('[frfr] cloud restore failed (continuing with local):', e.message); }
 }
 function saveDb() {
   if (saveTimer) return;
@@ -382,7 +432,7 @@ const uid = (p) => `${p}_${Date.now().toString(36)}${(idc++).toString(36)}${cryp
 
 /* -------------------------------------------------------------- seed: admin */
 function seedAdmin() {
-  const { salt, hash } = hashPassword('admin123');
+  const { salt, hash } = hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
   db.users.push({
     id: 'user_admin', role: 'admin', emailVerified: true,
     name: 'frfr Admin', username: 'admin', email: 'admin@frfr.app',
@@ -1444,7 +1494,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 39; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 40; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1551,7 +1601,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 39; // keep in sync with public/latest.json
+const APP_VERSION = 40; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1583,7 +1633,7 @@ function unzipBuf(buf) {
 }
 
 async function checkForUpdates() {
-  if (process.env.FRFR_NO_UPDATE) return;
+  if (process.env.FRFR_NO_UPDATE || process.env.RENDER) return; // hosted deploys come from git, not the beacon
   try {
     const r = await fetch(UPDATE_BASE + 'latest.json', { signal: AbortSignal.timeout(8000) });
     const meta = await r.json();
@@ -1609,10 +1659,22 @@ async function checkForUpdates() {
 }
 
 loadDb();
+cloudRestore().then(() => {
+  // v3.10: admin password can come from env (hosted mode) — sync every boot
+  if (process.env.ADMIN_PASSWORD) {
+    const adm = db.users.find(u => u.role === 'admin');
+    if (adm) {
+      const { salt, hash } = hashPassword(String(process.env.ADMIN_PASSWORD));
+      adm.passSalt = salt; adm.passHash = hash;
+      saveDbNow();
+      console.log('[frfr] admin password set from ADMIN_PASSWORD env ✅');
+    }
+  }
+});
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.9  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.9)');
-  console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / admin123`);
+  console.log('  ✦✦✦  frfr build v3.10  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.10)');
+  console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / ${process.env.ADMIN_PASSWORD ? '(env password)' : 'admin123'}${CLOUD_URL ? '  ☁️ cloud backup ON' : ''}`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });

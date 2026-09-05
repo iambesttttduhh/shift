@@ -1,5 +1,13 @@
 {
-  "dependencies": {
-    "jsdom": "^30.0.1"
+  "name": "frfr",
+  "version": "3.10.0",
+  "private": true,
+  "description": "frfr. — teen fren-matching for india. zero dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

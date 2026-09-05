@@ -95,3 +95,32 @@ The app ships with a built-in zero-dependency SMTP client (STARTTLS + AUTH PLAIN
 | DELETE | `/api/admin/users/:id` | remove a user (admin) |
 
 > ⚠️ Built as a demo: for a real deployment serving minors you'd want proper moderation, reporting, privacy controls, and COPPA/GDPR-K style compliance. Be safe out there, besties.
+
+
+## Host it FREE on Render ☁️
+One shared world, works from any phone/laptop, zero installs for friends, ₹0 forever.
+
+### One-time cloud backup (so data survives Render restarts) — free
+1. upstash.com → sign up free (no card) → **Create Database** → Regional (any) → Free plan
+2. Open the database → **REST** section → copy the **UPSTASH_REDIS_REST_URL** and **UPSTASH_REDIS_REST_TOKEN**
+
+### Deploy (5 minutes)
+1. **render.com** → sign up **with GitHub** (no card)
+2. New + → **Web Service** → pick repo `iambesttttduhh/shift` (click "Configure account" if not listed)
+3. Settings:
+   - **Branch:** `arena/01a06b20-shift`
+   - **Runtime:** Node
+   - **Build Command:** `npm install --no-audit --no-fund`
+   - **Start Command:** `node server.js`
+   - **Instance Type:** Free
+4. **Advanced → Add Environment Variables:**
+   - `FRFR_NO_UPDATE` = `1`
+   - `ADMIN_PASSWORD` = (invent ur own admin password!)
+   - `UPSTASH_REDIS_REST_URL` = (from Upstash)
+   - `UPSTASH_REDIS_REST_TOKEN` = (from Upstash)
+5. **Create Web Service** → wait ~2 min → ur app is LIVE on `https://something.onrender.com` 🎉
+
+### Free-tier truths
+- The app **sleeps** after ~15 min idle → first visitor waits ~40s (wake-up), then instant
+- Every git push to the branch auto-redeploys (~2 min)
+- Data auto-restores from the Upstash backup after restarts 💾

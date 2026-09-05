@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.9';
+const APP_VER = '3.10';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
@@ -270,7 +270,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.9 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.10 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
