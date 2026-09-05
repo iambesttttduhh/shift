@@ -241,7 +241,7 @@ function renderPhotoField(photos, onChange) {
 /* ============================================================
    LANDING / AUTH
    ============================================================ */
-const APP_VER = '3.10';
+const APP_VER = '3.11';
 window.addEventListener('error', e => { try { toast('⚠️ ' + (e.message || 'script error'), 'bad'); } catch (x) {} });
 window.addEventListener('unhandledrejection', e => { try { toast('⚠️ ' + ((e.reason && e.reason.message) || 'something went wrong'), 'bad'); } catch (x) {} });
 let authTab = 'login';
@@ -249,6 +249,7 @@ let draft = { emoji: '😎', grad: 0, vibes: [], photo: null }; // signup form d
 
 function renderLanding() {
   stopTimers();
+  document.title = 'frfr — make frens in ur city ✦';
   const m = state.meta;
   const st = m ? m.stats : { frens: 0, cities: 0 };
   app.innerHTML = `
@@ -270,7 +271,7 @@ function renderLanding() {
         <div class="tickers">
           <div class="marquee"><span>double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯 double-tap to match ⚡ ur for-u feed 💌 real ones only 💯 ur city ur ppl 📍 frens fr 💜 vibe check passed ✅ yapping zone 🗣️ no cap 🚫🧢 bestie behaviour 💯</span></div>
         </div>
-        <div class="ver-tag">v3.10 ✦ if u can read this, u got the newest build</div>
+        <div class="ver-tag">v3.11 ✦ if u can read this, u got the newest build</div>
   </div>`;
   renderAuthCard();
 }
@@ -974,6 +975,31 @@ function feedCardHtml(u, idx = 0) {
   </div>`;
 }
 
+function openLightbox(photos, idx) {
+  if (!photos || !photos.length) return;
+  const existing = document.querySelector('.lightbox');
+  if (existing) existing.remove(); // never stack
+  let i = Math.max(0, Math.min(idx || 0, photos.length - 1));
+  const lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = `
+    <button class="lb-x">✕</button>
+    <img src="${esc(photos[i])}" alt="">
+    ${photos.length > 1 ? `<button class="lb-nav lb-prev">‹</button><button class="lb-nav lb-next">›</button><div class="lb-dots">${photos.map((_, d) => `<span class="${d === i ? 'on' : ''}"></span>`).join('')}</div>` : ''}`;
+  const show = (n) => {
+    i = ((n % photos.length) + photos.length) % photos.length;
+    const im = $('img', lb);
+    if (im) im.src = photos[i];
+    $$('.lb-dots span', lb).forEach((d, di) => d.classList.toggle('on', di === i));
+  };
+  $('.lb-x', lb).onclick = () => lb.remove();
+  lb.addEventListener('click', (e) => { if (e.target === lb) lb.remove(); });
+  const p = $('.lb-prev', lb), n = $('.lb-next', lb);
+  if (p) p.onclick = (e) => { e.stopPropagation(); show(i - 1); };
+  if (n) n.onclick = (e) => { e.stopPropagation(); show(i + 1); };
+  document.body.appendChild(lb);
+}
+
 function wireFeedCards(items) {
   items.forEach(u => {
     const card = $('.feed-card[data-id="' + CSS.escape(u.id) + '"]');
@@ -991,11 +1017,13 @@ function wireFeedCards(items) {
     const prev = $('.gal-prev', card), next = $('.gal-next', card);
     if (prev) prev.onclick = (e) => { e.stopPropagation(); showPic(+card.dataset.photo - 1); };
     if (next) next.onclick = (e) => { e.stopPropagation(); showPic(+card.dataset.photo + 1); };
+    const photo = $('.feed-photo', card);
+    if (photo) photo.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(photos, +card.dataset.photo || 0); });
 
     // double-tap = friend request (with drag guard so scrolling doesn't trigger)
     let lastTap = 0, lastX = 0, lastY = 0, downX = 0, downY = 0;
     card.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.rail-btn') || e.target.closest('.gal-btn')) return;
+      if (e.target.closest('.rail-btn') || e.target.closest('.gal-btn') || e.target.closest('.feed-photo')) return;
       downX = e.clientX; downY = e.clientY;
       const now = Date.now();
       const dist = Math.hypot(e.clientX - lastX, e.clientY - lastY);
@@ -1142,6 +1170,8 @@ async function renderMatches() {
         </button>`).join('')}`;
     const cd = $('#nav-chat-dot');
     if (cd) cd.style.display = r.matches.some(m => m.unread) ? 'block' : 'none';
+    const un = r.matches.filter(m => m.unread).length;
+    document.title = un ? '(' + un + ') frfr. 💬' : 'frfr — make frens in ur city ✦';
     $$('.match-row', root).forEach(b => b.onclick = () => {
       const mt = r.matches.find(x => x.id === b.dataset.id);
       openChat(mt.id, mt.user);
@@ -1153,6 +1183,7 @@ async function renderMatches() {
 
 async function openChat(matchId, otherUser) {
   stopTimers();
+  document.title = 'frfr — make frens in ur city ✦';
   state.activeMatch = { id: matchId, user: otherUser };
   renderNav();
   const root = $('#view-root');

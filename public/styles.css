@@ -1300,6 +1300,34 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
 @keyframes hudShine { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
 .hud-chip.lvl.bump { animation: hudShine .8s ease 3; }
 
+/* v3.11: photo lightbox */
+.lightbox {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(5,5,9,.94); backdrop-filter: blur(10px);
+  display: grid; place-items: center;
+  animation: lbIn .18s ease;
+}
+@keyframes lbIn { from { opacity: 0; } to { opacity: 1; } }
+.lightbox img {
+  max-width: 92vw; max-height: 82vh; border-radius: 18px;
+  box-shadow: 0 30px 90px rgba(0,0,0,.7);
+  border: 1px solid rgba(255,255,255,.12);
+}
+.lb-x {
+  position: absolute; top: 18px; right: 22px; font-size: 22px;
+  background: rgba(255,255,255,.08); border: 1px solid var(--line); color: #fff;
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+}
+.lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 34px; color: #fff; background: rgba(255,255,255,.07);
+  border: 1px solid var(--line); width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+}
+.lb-prev { left: 18px; } .lb-next { right: 18px; }
+.lb-dots { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); display: flex; gap: 7px; }
+.lb-dots span { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.lb-dots span.on { background: var(--lime); }
+
 /* v3.8: chats tab unread dot */
 .nav-chat-dot {
   position: absolute; top: 8px; right: 50%; margin-right: -22px;
@@ -1381,5 +1409,6 @@ table.admin tbody tr:hover { background: rgba(255,255,255,.03); }
   .chat-dice:hover { transform: none; }
   .pc-fill { transition: none; }
   .unread-dot { animation: none; }
+  .lightbox { animation: none; }
   .btn:hover { transform: none; filter: none; }
 }

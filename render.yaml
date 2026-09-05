@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: frfr
+    runtime: node
+    plan: free
+    branch: arena/01a06b20-shift
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: node server.js
+    envVars:
+      - key: FRFR_NO_UPDATE
+        value: "1"
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

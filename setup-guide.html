@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>frfr — go LIVE in 5 min ☁️</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { min-height:100vh; background:radial-gradient(1200px 700px at 15% -10%, #241a3f 0%, #0d0d14 55%), #0d0d14; color:#f2f2f2; font-family:'Segoe UI',system-ui,sans-serif; padding:28px 16px 60px; }
+  .wrap { max-width:640px; margin:0 auto; }
+  .logo { font-size:42px; font-weight:900; background:linear-gradient(100deg,#ccff33,#7ee8fa 45%,#a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .logo .dot { color:#ff4d8d; -webkit-text-fill-color:#ff4d8d; }
+  h1 { font-size:20px; margin:8px 0 20px; }
+  .step { background:rgba(20,20,30,.75); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:18px 18px 16px; margin-bottom:14px; }
+  .step b.n { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:900; margin-right:8px; }
+  .step h2 { font-size:15.5px; display:flex; align-items:center; margin-bottom:8px; }
+  .step p, .step li { font-size:13.5px; color:#c9c9da; line-height:1.75; }
+  .step ol { padding-left:20px; }
+  .step b { color:#ccff33; }
+  code { background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); padding:2px 7px; border-radius:7px; font-size:12.5px; color:#7ee8fa; word-break:break-all; }
+  a.btn { display:block; text-align:center; margin:10px 0 4px; padding:13px; border-radius:999px; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:800; text-decoration:none; font-size:15px; }
+  a.btn.pink { background:linear-gradient(100deg,#ff4d8d,#a78bfa); color:#fff; }
+  .warn { border-color:rgba(255,77,141,.4); background:rgba(255,77,141,.07); }
+  .note { font-size:12px; color:#8b8ba3; margin-top:6px; }
+  .check { color:#3ddc63; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">frfr<span class="dot">.</span></div>
+  <h1>go LIVE — one shared world, free forever ☁️</h1>
+
+  <div class="step">
+    <h2><b class="n">1</b>Upstash — the free memory 💾 (~2 min)</h2>
+    <ol>
+      <li>Open: <b>upstash.com</b> → top-right <b>Sign Up</b> → <b>Continue with Google</b> (no card)</li>
+      <li>It drops you on the <b>Console</b> dashboard → press <b>Create Database</b></li>
+      <li>Name: <code>frfr</code> · <b>Regional</b> → pick any (e.g. Mumbai/Apin) · Primary plan: <b>Free</b> → <b>Create</b></li>
+      <li>Inside the db, find <b>REST API</b> in the left/side menu ✋ (NOT "Details", it says REST API)</li>
+      <li>You'll see 2 boxes: <b>UPSTASH_REDIS_REST_URL</b> and <b>UPSTASH_REDIS_REST_TOKEN</b> — copy BOTH to notepad 📋</li>
+    </ol>
+    <a class="btn pink" href="https://console.upstash.com" target="_blank">open upstash console ↗</a>
+  </div>
+
+  <div class="step">
+    <h2><b class="n">2</b>Render — the host 🚀 (~3 min)</h2>
+    <ol>
+      <li>Open: <b>render.com</b> → <b>Get Started</b> → <b>GitHub</b> sign-in (no card)</li>
+      <li>Dashboard → <b>New +</b> (top-right) → <b>Blueprint</b></li>
+      <li>Repo list → if <code>shift</code> is missing → click <b>Configure account</b> → <b>Only select repositories</b> → pick <code>shift</code> → Install → back on Render it appears</li>
+      <li>Pick <code>shift</code> → Render reads <code>render.yaml</code> and autofills EVERYTHING ✨</li>
+      <li>It asks for 3 secrets — paste:
+        <br><code>ADMIN_PASSWORD</code> → invent ur own secret admin pw
+        <br><code>UPSTASH_REDIS_REST_URL</code> → from step 1
+        <br><code>UPSTASH_REDIS_REST_TOKEN</code> → from step 1</li>
+      <li><b>Apply</b> / <b>Deploy</b> → wait ~2 min → <span class="check">✅ Live</span></li>
+    </ol>
+    <a class="btn" href="https://dashboard.render.com/select-repo" target="_blank">open render dashboard ↗</a>
+    <p class="note">"Blueprint" not visible? Use <b>New + → Web Service</b> instead: repo <code>shift</code>, Branch <code>arena/01a06b20-shift</code>, Runtime <b>Node</b>, Build <code>npm install --no-audit --no-fund</code>, Start <code>node server.js</code>, Instance <b>Free</b> → Advanced → Add the 4 env vars (also <code>FRFR_NO_UPDATE</code> = <code>1</code>) → Create.</p>
+  </div>
+
+  <div class="step warn">
+    <h2>🩹 if anything says "not found"</h2>
+    <p>• <b>Render repo list empty:</b> that's the GitHub-app grant — do the <b>Configure account → Only select repositories → shift</b> bit above (step 2.3). It fixes it 100%.</p>
+    <p>• <b>Upstash has no "REST API" section:</b> click into your database first — the menu is INSIDE the db page.</p>
+    <p>• <b>App link 404s right after deploy:</b> wait for the green <b>Live</b> badge first — during deploy the URL isn't served yet.</p>
+  </div>
+
+  <div class="step">
+    <h2>🎉 after it's LIVE</h2>
+    <p>• ur link: <code>https://whatever-u-named.onrender.com</code> — share THAT, one world, phones welcome<br>
+    • first visit after 15 min idle wakes it (~40s) — normal free-tier nap 😴<br>
+    • every update I push goes live by itself in ~2 min</p>
+  </div>
+</div>
+</body>
+</html>

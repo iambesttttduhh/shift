@@ -1494,7 +1494,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 40; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 41; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1601,7 +1601,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 40; // keep in sync with public/latest.json
+const APP_VERSION = 41; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1673,8 +1673,8 @@ cloudRestore().then(() => {
 });
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.10  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.10)');
+  console.log('  ✦✦✦  frfr build v3.11  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.11)');
   console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / ${process.env.ADMIN_PASSWORD ? '(env password)' : 'admin123'}${CLOUD_URL ? '  ☁️ cloud backup ON' : ''}`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });
