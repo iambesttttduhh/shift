@@ -3,75 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>frfr — go LIVE in 5 min ☁️</title>
+<title>frfr — PUT IT ONLINE (free, ~5 min) 🚀</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { min-height:100vh; background:radial-gradient(1200px 700px at 15% -10%, #241a3f 0%, #0d0d14 55%), #0d0d14; color:#f2f2f2; font-family:'Segoe UI',system-ui,sans-serif; padding:28px 16px 60px; }
   .wrap { max-width:640px; margin:0 auto; }
   .logo { font-size:42px; font-weight:900; background:linear-gradient(100deg,#ccff33,#7ee8fa 45%,#a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .logo .dot { color:#ff4d8d; -webkit-text-fill-color:#ff4d8d; }
-  h1 { font-size:20px; margin:8px 0 20px; }
+  h1 { font-size:21px; margin:8px 0 4px; }
+  .sub { color:#9a9ab0; font-size:14px; margin-bottom:20px; }
   .step { background:rgba(20,20,30,.75); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:18px 18px 16px; margin-bottom:14px; }
-  .step b.n { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:900; margin-right:8px; }
-  .step h2 { font-size:15.5px; display:flex; align-items:center; margin-bottom:8px; }
-  .step p, .step li { font-size:13.5px; color:#c9c9da; line-height:1.75; }
+  .step b.n { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:900; margin-right:8px; flex:0 0 auto; }
+  .step h2 { font-size:15.5px; display:flex; align-items:center; margin-bottom:10px; }
+  .step p, .step li { font-size:13.5px; color:#c9c9da; line-height:1.8; }
   .step ol { padding-left:20px; }
   .step b { color:#ccff33; }
   code { background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); padding:2px 7px; border-radius:7px; font-size:12.5px; color:#7ee8fa; word-break:break-all; }
-  a.btn { display:block; text-align:center; margin:10px 0 4px; padding:13px; border-radius:999px; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:800; text-decoration:none; font-size:15px; }
+  a.btn { display:block; text-align:center; margin:12px 0 4px; padding:14px; border-radius:999px; background:linear-gradient(100deg,#ccff33,#7ee8fa); color:#000; font-weight:800; text-decoration:none; font-size:15px; }
   a.btn.pink { background:linear-gradient(100deg,#ff4d8d,#a78bfa); color:#fff; }
   .warn { border-color:rgba(255,77,141,.4); background:rgba(255,77,141,.07); }
-  .note { font-size:12px; color:#8b8ba3; margin-top:6px; }
+  .note { font-size:12px; color:#8b8ba3; margin-top:8px; }
   .check { color:#3ddc63; }
+  .big { font-size:15px; color:#f2f2f2; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="logo">frfr<span class="dot">.</span></div>
-  <h1>go LIVE — one shared world, free forever ☁️</h1>
+  <h1>this turns frfr into a REAL website 🚀</h1>
+  <p class="sub">one link · all ur frens inside · phones welcome · ₹0 forever · only 1 signup needed</p>
 
   <div class="step">
-    <h2><b class="n">1</b>Upstash — the free memory 💾 (~2 min)</h2>
+    <h2><b class="n">1</b>make the memory 💾 (30 seconds, NO account)</h2>
     <ol>
-      <li>Open: <b>upstash.com</b> → top-right <b>Sign Up</b> → <b>Continue with Google</b> (no card)</li>
-      <li>It drops you on the <b>Console</b> dashboard → press <b>Create Database</b></li>
-      <li>Name: <code>frfr</code> · <b>Regional</b> → pick any (e.g. Mumbai/Apin) · Primary plan: <b>Free</b> → <b>Create</b></li>
-      <li>Inside the db, find <b>REST API</b> in the left/side menu ✋ (NOT "Details", it says REST API)</li>
-      <li>You'll see 2 boxes: <b>UPSTASH_REDIS_REST_URL</b> and <b>UPSTASH_REDIS_REST_TOKEN</b> — copy BOTH to notepad 📋</li>
+      <li>Open: <b>jsonblob.com</b> — a site with a big text box, no signup at all</li>
+      <li>Type exactly this in the box: <code>{}</code></li>
+      <li>Press the <b>Create</b> button</li>
+      <li>It gives u a link that looks like <code>jsonblob.com/api/jsonBlob/1234567890</code></li>
+      <li>📋 copy that full link (with the <code>https://</code>) — this is ur <b>JSONBLOB_URL</b></li>
     </ol>
-    <a class="btn pink" href="https://console.upstash.com" target="_blank">open upstash console ↗</a>
+    <a class="btn pink" href="https://jsonblob.com" target="_blank">open jsonblob.com ↗</a>
+    <p class="note">the link MUST contain <code>/api/jsonBlob/</code> — if u see a normal page instead, look for a "direct/API link" on it.</p>
   </div>
 
   <div class="step">
-    <h2><b class="n">2</b>Render — the host 🚀 (~3 min)</h2>
+    <h2><b class="n">2</b>put it online 🚀 (~4 min, the ONE signup)</h2>
     <ol>
-      <li>Open: <b>render.com</b> → <b>Get Started</b> → <b>GitHub</b> sign-in (no card)</li>
-      <li>Dashboard → <b>New +</b> (top-right) → <b>Blueprint</b></li>
-      <li>Repo list → if <code>shift</code> is missing → click <b>Configure account</b> → <b>Only select repositories</b> → pick <code>shift</code> → Install → back on Render it appears</li>
-      <li>Pick <code>shift</code> → Render reads <code>render.yaml</code> and autofills EVERYTHING ✨</li>
-      <li>It asks for 3 secrets — paste:
-        <br><code>ADMIN_PASSWORD</code> → invent ur own secret admin pw
-        <br><code>UPSTASH_REDIS_REST_URL</code> → from step 1
-        <br><code>UPSTASH_REDIS_REST_TOKEN</code> → from step 1</li>
-      <li><b>Apply</b> / <b>Deploy</b> → wait ~2 min → <span class="check">✅ Live</span></li>
+      <li>Open: <b>render.com</b> → <b>Get Started for Free</b> → <b>GitHub</b> → sign in with ur GitHub (the one that owns <code>shift</code>)</li>
+      <li>Top-right <b>New +</b> → pick <b>Blueprint</b></li>
+      <li>Repo list: if <code>shift</code> is not there → <b>Configure account</b> → <b>Only select repositories</b> → choose <code>shift</code> → <b>Install</b> → now it shows ✅</li>
+      <li>Pick <code>shift</code> — Render autofills everything from the blueprint ✨</li>
+      <li>It asks for 2 secrets — paste them:
+        <br><code>ADMIN_PASSWORD</code> → invent ur own secret admin password
+        <br><code>JSONBLOB_URL</code> → the link from step 1</li>
+      <li>Press <b>Apply</b> / <b>Deploy</b> → wait ~2 min → green <b>Live</b> <span class="check">✅</span></li>
     </ol>
-    <a class="btn" href="https://dashboard.render.com/select-repo" target="_blank">open render dashboard ↗</a>
-    <p class="note">"Blueprint" not visible? Use <b>New + → Web Service</b> instead: repo <code>shift</code>, Branch <code>arena/01a06b20-shift</code>, Runtime <b>Node</b>, Build <code>npm install --no-audit --no-fund</code>, Start <code>node server.js</code>, Instance <b>Free</b> → Advanced → Add the 4 env vars (also <code>FRFR_NO_UPDATE</code> = <code>1</code>) → Create.</p>
+    <a class="btn" href="https://dashboard.render.com/select-repo" target="_blank">open render ↗</a>
+    <p class="note">no "Blueprint" option? → <b>New + → Web Service</b> → repo <code>shift</code> · branch <code>arena/01a06b20-shift</code> · Runtime <b>Node</b> · Build <code>npm install --no-audit --no-fund</code> · Start <code>node server.js</code> · Instance <b>Free</b> · Advanced → env vars: <code>FRFR_NO_UPDATE=1</code>, <code>ADMIN_PASSWORD</code>, <code>JSONBLOB_URL</code> → Create.</p>
+  </div>
+
+  <div class="step">
+    <h2>🎉 ur website is ready</h2>
+    <p class="big">ur link: <code>https://ur-name.onrender.com</code></p>
+    <p>• send THAT in the gang group — everyone opens it on <b>phone or laptop</b>, no installs<br>
+    • one shared world — u all REALLY match each other 💜<br>
+    • app sleeps after 15 min idle — first visitor waits ~40s (free-tier nap 😴), then instant<br>
+    • every update I ship goes live by itself in ~2 min<br>
+    • all accounts/chats auto-restore from ur jsonblob after restarts 💾</p>
   </div>
 
   <div class="step warn">
-    <h2>🩹 if anything says "not found"</h2>
-    <p>• <b>Render repo list empty:</b> that's the GitHub-app grant — do the <b>Configure account → Only select repositories → shift</b> bit above (step 2.3). It fixes it 100%.</p>
-    <p>• <b>Upstash has no "REST API" section:</b> click into your database first — the menu is INSIDE the db page.</p>
-    <p>• <b>App link 404s right after deploy:</b> wait for the green <b>Live</b> badge first — during deploy the URL isn't served yet.</p>
+    <h2>🩹 quick fixes</h2>
+    <p>• <b>"not found" on Render repo list</b> → do step 2.3 (Configure account → Only select repositories → shift). fixes it 100%<br>
+    • <b>app link 404 right after deploy</b> → wait for the green <b>Live</b> badge first<br>
+    • <b>jsonblob link rejected</b> → make sure it has <code>/api/jsonBlob/</code> in it and u copied the whole https:// part<br>
+    • <b>Blueprint page asks for a "new repo"</b> → no — u pick ur EXISTING <code>shift</code> repo</p>
   </div>
 
-  <div class="step">
-    <h2>🎉 after it's LIVE</h2>
-    <p>• ur link: <code>https://whatever-u-named.onrender.com</code> — share THAT, one world, phones welcome<br>
-    • first visit after 15 min idle wakes it (~40s) — normal free-tier nap 😴<br>
-    • every update I push goes live by itself in ~2 min</p>
-  </div>
+  <p class="note">pro mode (optional, later): swap jsonblob for a free Upstash Redis (UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN) — frfr supports both 💜</p>
 </div>
 </body>
 </html>

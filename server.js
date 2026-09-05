@@ -368,12 +368,16 @@ function saveDbNow() {
     fs.renameSync(tmp, DB_PATH);
   } catch (e) { console.error('[frfr] save failed', e.message); }
   cloudSync(); // v3.10: keep cloud copy fresh (hosted mode)
+  blobSync();  // v3.12: jsonblob backup (zero-signup)
 }
 
 /* ---------------- cloud backup (v3.10, free tier: Upstash Redis REST) ---------------- */
 const CLOUD_URL = (process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REST_URL || '').replace(/\/$/, '');
 const CLOUD_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REST_TOKEN || '';
+// v3.12: JSONBlob provider — zero-signup backup (just paste a blob url as JSONBLOB_URL)
+const BLOB_URL = (process.env.JSONBLOB_URL || '').replace(/\/$/, '');
 let cloudTimer = null, cloudBusy = false, cloudDirty = false;
+let blobTimer = null, blobBusy = false, blobDirty = false;
 
 async function cloudPush() {
   if (!CLOUD_URL || cloudBusy) { if (cloudBusy) cloudDirty = true; return; }
@@ -391,6 +395,42 @@ async function cloudPush() {
   } catch (e) { console.error('[frfr] cloud sync failed:', e.message); }
   cloudBusy = false;
   if (cloudDirty) { cloudDirty = false; cloudSync(); }
+}
+
+async function blobPush() {
+  if (!BLOB_URL || blobBusy) { if (blobBusy) blobDirty = true; return; }
+  blobBusy = true;
+  try {
+    const r = await fetch(BLOB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(db),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!r.ok) console.error('[frfr] blob sync failed:', r.status);
+  } catch (e) { console.error('[frfr] blob sync failed:', e.message); }
+  blobBusy = false;
+  if (blobDirty) { blobDirty = false; blobSync(); }
+}
+function blobSync() {
+  if (!BLOB_URL) return;
+  if (blobTimer) return;
+  blobTimer = setTimeout(() => { blobTimer = null; blobPush(); }, 3000);
+}
+
+async function blobRestore() {
+  if (!BLOB_URL) return;
+  try {
+    const r = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(20000) });
+    const data = await r.json();
+    if (data && Array.isArray(data.users) && data.users.length) {
+      db = data;
+      saveDbNow();
+      console.log('[frfr] blob: restored', db.users.length, 'users from backup 💾');
+    } else {
+      console.log('[frfr] blob: backup empty — this boot becomes the backup');
+    }
+  } catch (e) { console.error('[frfr] blob restore failed (continuing with local):', e.message); }
 }
 function cloudSync() {
   if (!CLOUD_URL) return;
@@ -1494,7 +1534,7 @@ addRoute('PUT', '/api/admin/users/:id', { auth: true }, (req, res, params, body,
 });
 
 /* ------------------------------------------------------------------ static */
-const WEB_BUILD = 41; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
+const WEB_BUILD = 42; // bump when frontend changes; index.html asset URLs get ?v=<WEB_BUILD> auto-injected
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -1601,7 +1641,7 @@ const server = http.createServer(async (req, res) => {
 /* ------------------------------------------------------------------ auto-update */
 // One-click forever: start.bat loops; if a newer build exists on GitHub, the server
 // downloads + extracts it, then exits with code 99 -> start.bat relaunches the new code.
-const APP_VERSION = 41; // keep in sync with public/latest.json
+const APP_VERSION = 42; // keep in sync with public/latest.json
 const UPDATE_BASE = process.env.FRFR_UPDATE_BASE ||
   'https://raw.githubusercontent.com/iambesttttduhh/shift/arena/01a06b20-shift/public/';
 const EXIT_RESTART = 99;
@@ -1659,7 +1699,10 @@ async function checkForUpdates() {
 }
 
 loadDb();
-cloudRestore().then(() => {
+(async () => {
+  if (BLOB_URL) await blobRestore();
+  if (CLOUD_URL) await cloudRestore();
+
   // v3.10: admin password can come from env (hosted mode) — sync every boot
   if (process.env.ADMIN_PASSWORD) {
     const adm = db.users.find(u => u.role === 'admin');
@@ -1670,11 +1713,11 @@ cloudRestore().then(() => {
       console.log('[frfr] admin password set from ADMIN_PASSWORD env ✅');
     }
   }
-});
+})();
 server.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  ✦✦✦  frfr build v3.11  ✦✦✦');
-  console.log('  if u see this line, the NEWEST code is running (web badge: v3.11)');
-  console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / ${process.env.ADMIN_PASSWORD ? '(env password)' : 'admin123'}${CLOUD_URL ? '  ☁️ cloud backup ON' : ''}`);
+  console.log('  ✦✦✦  frfr build v3.12  ✦✦✦');
+  console.log('  if u see this line, the NEWEST code is running (web badge: v3.12)');
+  console.log(`[frfr] vibing on http://${HOST}:${PORT}  ✦  admin: admin / ${process.env.ADMIN_PASSWORD ? '(env password)' : 'admin123'}${CLOUD_URL ? '  ☁️ cloud backup ON' : ''}${BLOB_URL ? '  💾 blob backup ON' : ''}`);
   setTimeout(checkForUpdates, 1500); // auto-update check after boot (silent if none/offline)
 });

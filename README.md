@@ -100,9 +100,13 @@ The app ships with a built-in zero-dependency SMTP client (STARTTLS + AUTH PLAIN
 ## Host it FREE on Render ☁️
 One shared world, works from any phone/laptop, zero installs for friends, ₹0 forever.
 
-### One-time cloud backup (so data survives Render restarts) — free
-1. upstash.com → sign up free (no card) → **Create Database** → Regional (any) → Free plan
-2. Open the database → **REST** section → copy the **UPSTASH_REDIS_REST_URL** and **UPSTASH_REDIS_REST_TOKEN**
+### Cloud backup — EASY way (zero signup, 30 sec)
+1. jsonblob.com → paste `{}` in the box → **Create** → copy the link (`jsonblob.com/api/jsonBlob/…`)
+2. On Render, set env `JSONBLOB_URL` = that link. Done — data auto-restores after restarts.
+
+### Cloud backup — PRO way (Upstash, also free)
+1. upstash.com → free account → **Create Database** → **REST** section → copy URL + TOKEN
+2. Render env: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`
 
 ### Deploy (5 minutes)
 1. **render.com** → sign up **with GitHub** (no card)
@@ -116,8 +120,7 @@ One shared world, works from any phone/laptop, zero installs for friends, ₹0 f
 4. **Advanced → Add Environment Variables:**
    - `FRFR_NO_UPDATE` = `1`
    - `ADMIN_PASSWORD` = (invent ur own admin password!)
-   - `UPSTASH_REDIS_REST_URL` = (from Upstash)
-   - `UPSTASH_REDIS_REST_TOKEN` = (from Upstash)
+   - `JSONBLOB_URL` = (from jsonblob.com — 30-sec setup, see above)
 5. **Create Web Service** → wait ~2 min → ur app is LIVE on `https://something.onrender.com` 🎉
 
 ### Free-tier truths
